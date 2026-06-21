@@ -1,4 +1,8 @@
-import { Eye, Heart, MessageCircle, UserPlus, UserCheck, FileText, TrendingUp, ArrowDownToLine, Check, Activity, MousePointerClick, LayoutDashboard, Globe, Rss, PlayCircle, Leaf, Bookmark, Share2 } from 'lucide-react';
+import { 
+  Eye, Heart, MessageCircle, UserPlus, UserCheck, FileText, 
+  TrendingUp, ArrowDownToLine, Check, Activity, MousePointerClick, 
+  LayoutDashboard, Globe, Rss, PlayCircle, Leaf, Bookmark, Share2, Target
+} from 'lucide-react';
 
 export const C = {
   bg: '#F4EEE8',
@@ -92,17 +96,25 @@ export const initialWeekMeta = [
   { key: 'W24', month: '2026-06' },
 ];
 
-// 샘플 뷰 전용 데이터셋 복구 완료
+// 가데이터 셋을 완전히 채워서 연동 전 빈 화면 오류 원천 방지
 export const initialAccountMetrics = {
   KR: {
+    W18: { sales: 290000000, inflow: 200000, salesAchieveRate: 100, inflowAchieveRate: 100, pace: 100, reach: 3500000, organicReach: 1500000, views: 5000000, organicViews: 2000000, engagement: 80000, newFollowers: 1100, followers: 75000, contentsCount: 6, profileVisits: 20000, websiteClicks: 4000 },
+    W19: { sales: 310000000, inflow: 220000, salesAchieveRate: 105, inflowAchieveRate: 102, pace: 104, reach: 3700000, organicReach: 1600000, views: 5200000, organicViews: 2100000, engagement: 90000, newFollowers: 1200, followers: 76200, contentsCount: 7, profileVisits: 22000, websiteClicks: 4100 },
+    W20: { sales: 300000000, inflow: 210000, salesAchieveRate: 98, inflowAchieveRate: 95, pace: 97, reach: 3600000, organicReach: 1400000, views: 5100000, organicViews: 1900000, engagement: 85000, newFollowers: 1050, followers: 77250, contentsCount: 5, profileVisits: 21000, websiteClicks: 3900 },
+    W21: { sales: 320000000, inflow: 230000, salesAchieveRate: 108, inflowAchieveRate: 106, pace: 107, reach: 4100000, organicReach: 1800000, views: 6000000, organicViews: 2500000, engagement: 110000, newFollowers: 1300, followers: 78550, contentsCount: 8, profileVisits: 25000, websiteClicks: 4300 },
     W22: { sales: 335000000, inflow: 281000, salesAchieveRate: 110, inflowAchieveRate: 105, pace: 102, reach: 4970000, organicReach: 1970000, views: 7210000, organicViews: 3100000, engagement: 167000, newFollowers: 1460, followers: 79800, contentsCount: 7, profileVisits: 24200, websiteClicks: 4200 },
     W23: { sales: 475000000, inflow: 260000, salesAchieveRate: 154, inflowAchieveRate: 130, pace: 140, reach: 5720000, organicReach: 2320000, views: 8650000, organicViews: 3560000, engagement: 243000, newFollowers: 2140, followers: 81900, contentsCount: 7, profileVisits: 29100, websiteClicks: 4700 },
     W24: { sales: 365000000, inflow: 216000, salesAchieveRate: 120, inflowAchieveRate: 111, pace: 115, reach: 4790000, organicReach: 1290000, views: 7800000, organicViews: 2050000, engagement: 125000, newFollowers: 1260, followers: 83200, contentsCount: 7, profileVisits: 17900, websiteClicks: 3900 },
   },
   US: {
-    W22: { sales: 430000000, inflow: 277000, salesAchieveRate: 96, inflowAchieveRate: 94, pace: 99, reach: 7810000, organicReach: 7430000, views: 11630000, organicViews: 11110000, engagement: 317000, newFollowers: 2130, followers: 110500, contentsCount: 25, profileVisits: 15300, websiteClicks: 2700 },
-    W23: { sales: 442000000, inflow: 291000, salesAchieveRate: 102, inflowAchieveRate: 98, pace: 101, reach: 3210000, organicReach: 2930000, views: 5240000, organicViews: 4760000, engagement: 128000, newFollowers: 960, followers: 111500, contentsCount: 15, profileVisits: 8600, websiteClicks: 1300 },
-    W24: { sales: 339000000, inflow: 259000, salesAchieveRate: 92, inflowAchieveRate: 89, pace: 90, reach: 4420000, organicReach: 4140000, views: 7220000, organicViews: 6740000, engagement: 206000, newFollowers: 1341, followers: 112800, contentsCount: 14, profileVisits: 8300, websiteClicks: 900 },
+    W18: { sales: 380000000, inflow: 250000, salesAchieveRate: 90, inflowAchieveRate: 92, pace: 91, reach: 6500000, organicReach: 6000000, views: 9000000, organicViews: 8500000, engagement: 210000, newFollowers: 1800, followers: 105000, contentsCount: 12, profileVisits: 12000, websiteClicks: 2100 },
+    W19: { sales: 390000000, inflow: 260000, salesAchieveRate: 92, inflowAchieveRate: 94, pace: 93, reach: 6800000, organicReach: 6300000, views: 9500000, organicViews: 8900000, engagement: 230000, newFollowers: 1900, followers: 106900, contentsCount: 15, profileVisits: 13000, websiteClicks: 2200 },
+    W20: { sales: 410000000, inflow: 265000, salesAchieveRate: 94, inflowAchieveRate: 93, pace: 94, reach: 7100000, organicReach: 6700000, views: 10200000, organicViews: 9600000, engagement: 270000, newFollowers: 2000, followers: 108900, contentsCount: 18, profileVisits: 14000, websiteClicks: 2400 },
+    W21: { sales: 420000000, inflow: 270000, salesAchieveRate: 95, inflowAchieveRate: 94, pace: 95, reach: 7400000, organicReach: 7000000, views: 11000000, organicViews: 10400000, engagement: 290000, newFollowers: 2050, followers: 110950, contentsCount: 20, profileVisits: 14500, websiteClicks: 2500 },
+    W22: { sales: 430000000, inflow: 277000, salesAchieveRate: 96, inflowAchieveRate: 94, pace: 99, reach: 7810000, organicReach: 7430000, views: 11630000, organicViews: 11110000, engagement: 317000, newFollowers: 2130, followers: 113080, contentsCount: 25, profileVisits: 15300, websiteClicks: 2700 },
+    W23: { sales: 442000000, inflow: 291000, salesAchieveRate: 102, inflowAchieveRate: 98, pace: 101, reach: 3210000, organicReach: 2930000, views: 5240000, organicViews: 4760000, engagement: 128000, newFollowers: 960, followers: 114040, contentsCount: 15, profileVisits: 8600, websiteClicks: 1300 },
+    W24: { sales: 339000000, inflow: 259000, salesAchieveRate: 92, inflowAchieveRate: 89, pace: 90, reach: 4420000, organicReach: 4140000, views: 7220000, organicViews: 6740000, engagement: 206000, newFollowers: 1341, followers: 115381, contentsCount: 14, profileVisits: 8300, websiteClicks: 900 },
   }
 };
 
