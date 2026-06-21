@@ -1,0 +1,100 @@
+import { Eye, Heart, MessageCircle, UserPlus, UserCheck, FileText, TrendingUp, ArrowDownToLine, Check, Activity, MousePointerClick, LayoutDashboard, Globe, Rss, PlayCircle, Leaf, Bookmark, Share2 } from 'lucide-react';
+
+export const C = {
+  bg: '#F4EEE8',
+  card: '#FFFFFF',
+  panel: '#FBF7F3',
+  ink: '#241F1B',
+  sub: '#6B6259',
+  subLite: '#9A928A',
+  border: '#E7DCD3',
+  borderStrong: '#D9CABB',
+  accent: '#E8546B',
+  accentSoft: '#FCE9EC',
+  mint: '#2E9E89',
+  mintSoft: '#E4F2EE',
+};
+
+export const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+const SHADOW = '0 1px 3px rgba(40,28,18,0.05), 0 1px 2px rgba(40,28,18,0.03)';
+export { SHADOW };
+
+export const COUNTRIES = [
+  { key: 'KR', label: '한국', flag: '🇰🇷', color: '#E8546B' },
+  { key: 'US', label: '미국', flag: '🇺🇸', color: '#3E6FE0' },
+];
+
+export const NAV = [
+  { key: 'summary', label: '통합 요약', icon: LayoutDashboard },
+  { key: 'KR', label: '한국 대시보드', icon: Globe },
+  { key: 'US', label: '미국 대시보드', icon: Globe },
+  { key: 'feed', label: '피드 콘텐츠', icon: Rss },
+];
+
+export const ACCOUNT_METRICS = {
+  reach: { label: '도달수', icon: Eye, color: '#3E8FB0' },
+  organicReach: { label: '오가닉 도달', icon: Leaf, color: '#2E9E89' },
+  views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' },
+  organicViews: { label: '오가닉 조회수', icon: Leaf, color: '#2E9E89' },
+  engagement: { label: '참여수', icon: Activity, color: '#6C5CE7' },
+  newFollowers: { label: '신규 팔로우 수', icon: UserPlus, color: '#2E9E89' },
+  followers: { label: '팔로워(누적)', icon: UserCheck, color: '#2E9E89' },
+  contentsCount: { label: '콘텐츠 수', icon: FileText, color: '#E08A2B' },
+  profileVisits: { label: '프로필 방문', icon: UserCheck, color: '#E8546B' },
+  websiteClicks: { label: '웹사이트 클릭', icon: MousePointerClick, color: '#E08A2B' },
+  sales: { label: '매출', icon: TrendingUp, color: '#E8546B' },
+  inflow: { label: '유입', icon: ArrowDownToLine, color: '#2E9E89' },
+  salesAchieveRate: { label: '매출 달성률', icon: Check, color: '#6C5CE7' },
+  inflowAchieveRate: { label: '유입 달성률', icon: Check, color: '#6C5CE7' },
+  pace: { label: 'Pace', icon: Activity, color: '#E08A2B' },
+};
+
+export const ALL_ACCOUNT_KEYS = ['sales', 'inflow', 'salesAchieveRate', 'inflowAchieveRate', 'pace', 'reach', 'organicReach', 'views', 'organicViews', 'engagement', 'newFollowers', 'followers', 'contentsCount', 'profileVisits', 'websiteClicks'];
+
+export const CONTENT_METRICS = {
+  reach: { label: '도달', icon: Eye, color: '#3E8FB0' },
+  views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' },
+  engagement: { label: '참여', icon: Activity, color: '#6C5CE7' },
+  likes: { label: '좋아요', icon: Heart, color: '#E8546B' },
+  comments: { label: '댓글', icon: MessageCircle, color: '#C9A24B' },
+  saves: { label: '저장', icon: Bookmark, color: '#E8546B' },
+  shares: { label: '공유', icon: Share2, color: '#E08A2B' },
+};
+export const CONTENT_CORE = ['reach', 'views', 'engagement'];
+export const CONTENT_SUB = ['likes', 'comments', 'saves', 'shares'];
+
+export const FEED_METRICS = {
+  saves: { label: '저장수', icon: Bookmark, color: '#E8546B' },
+  shares: { label: '공유수', icon: Share2, color: '#E08A2B' },
+  profileActivity: { label: '프로필 활동', icon: UserCheck, color: '#6C5CE7' },
+  reach: { label: '도달', icon: Eye, color: '#3E8FB0' },
+  likes: { label: '좋아요', icon: Heart, color: '#E8546B' },
+  comments: { label: '댓글', icon: MessageCircle, color: '#4C6FBF' },
+  follows: { label: '팔로우', icon: UserPlus, color: '#2E9E89' },
+};
+export const FEED_CORE = ['saves', 'shares', 'profileActivity'];
+export const FEED_SUB = ['reach', 'likes', 'comments', 'follows'];
+export const FEED_KEYS = [...FEED_CORE, ...FEED_SUB];
+
+export const PRODUCT_CATS = [
+  { key: 'gelPressOn', label: '젤프레스온', color: '#E8546B' },
+  { key: 'hardener',   label: '강화제',    color: '#6C5CE7' },
+  { key: 'gelStrip',   label: '젤스트립',  color: '#2E9E89' },
+  { key: 'otherCare',  label: '기타케어류', color: '#C9A24B' },
+];
+
+export const initialWeekMeta = [
+  { key: 'W18', month: '2026-05' },
+  { key: 'W19', month: '2026-05' },
+  { key: 'W20', month: '2026-05' },
+  { key: 'W21', month: '2026-05' },
+  { key: 'W22', month: '2026-05' },
+  { key: 'W23', month: '2026-06' },
+  { key: 'W24', month: '2026-06' },
+];
+
+export const initialFeedContents = { KR: {}, US: {} };
+export const initialAllContents = { KR: {}, US: {} };
+export const initialAccountMetrics = { KR: {}, US: {} };
+export const initialCountryInsights = { KR: {}, US: {} };
+export const initialProductSales = { KR: {}, US: {} };
