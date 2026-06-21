@@ -8,11 +8,11 @@ import {
   Plus, Trash2, Pencil, Check, X, ExternalLink, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Minus, Loader2, RefreshCw, Settings, Target, 
   Leaf, FileText, Flame, LayoutDashboard, Globe, Rss, PlayCircle, 
-  ArrowDownToLine, MousePointerClick, Activity
+  ArrowDownToLine, MousePointerClick, Activity, CheckCircle, AlertCircle
 } from 'lucide-react';
 
 // ============================================================
-// 디자인 토큰 & 글로벌 CONFIG
+// 글로벌 테마 및 설정 메타
 // ============================================================
 const C = {
   bg: '#F4EEE8', card: '#FFFFFF', panel: '#FBF7F3', ink: '#241F1B', sub: '#6B6259', subLite: '#9A928A',
@@ -38,10 +38,7 @@ const ACCOUNT_METRICS = {
   salesAchieveRate: { label: '매출 달성률', icon: Check, color: '#6C5CE7' }, inflowAchieveRate: { label: '유입 달성률', icon: Check, color: '#6C5CE7' },
   pace: { label: 'Pace', icon: Activity, color: '#E08A2B' },
 };
-const ACCOUNT_KEYS = ['reach', 'organicReach', 'views', 'organicViews', 'engagement', 'newFollowers', 'followers', 'contentsCount', 'profileVisits', 'websiteClicks'];
-const BIZ_KEYS = ['sales', 'inflow', 'salesAchieveRate', 'inflowAchieveRate', 'pace'];
-const ALL_ACCOUNT_KEYS = [...BIZ_KEYS, ...ACCOUNT_KEYS];
-
+const ALL_ACCOUNT_KEYS = ['sales', 'inflow', 'salesAchieveRate', 'inflowAchieveRate', 'pace', 'reach', 'organicReach', 'views', 'organicViews', 'engagement', 'newFollowers', 'followers', 'contentsCount', 'profileVisits', 'websiteClicks'];
 const CONTENT_METRICS = {
   reach: { label: '도달', icon: Eye, color: '#3E8FB0' }, views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' },
   engagement: { label: '참여', icon: Activity, color: '#6C5CE7' }, likes: { label: '좋아요', icon: Heart, color: '#E8546B' },
@@ -50,7 +47,6 @@ const CONTENT_METRICS = {
 };
 const CONTENT_CORE = ['reach', 'views', 'engagement'];
 const CONTENT_SUB = ['likes', 'comments', 'saves', 'shares'];
-
 const FEED_METRICS = {
   saves: { label: '저장수', icon: Bookmark, color: '#E8546B' }, shares: { label: '공유수', icon: Share2, color: '#E08A2B' },
   profileActivity: { label: '프로필 활동', icon: UserCheck, color: '#6C5CE7' }, reach: { label: '도달', icon: Eye, color: '#3E8FB0' },
@@ -59,9 +55,11 @@ const FEED_METRICS = {
 };
 const FEED_CORE = ['saves', 'shares', 'profileActivity'];
 const FEED_SUB = ['reach', 'likes', 'comments', 'follows'];
+const FEED_KEYS = [...FEED_CORE, ...FEED_SUB];
+const PRODUCT_CATS = [{ key: 'gelPressOn', label: '젤프레스온', color: '#E8546B' }, { key: 'hardener', label: '강화제', color: '#6C5CE7' }, { key: 'gelStrip', label: '젤스트립', color: '#2E9E89' }, { key: 'otherCare', label: '기타케어류', color: '#C9A24B' }];
 
 // ============================================================
-// 헬퍼 함수
+// 데이터 가공용 유틸 유틸들
 // ============================================================
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const pct = (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
@@ -73,30 +71,19 @@ const fmtMetric = (mkey, value) => {
 const isReel = (item) => /\/reel[s]?\//.test(item.link || '');
 const fmtMonth = (m) => { if (!m) return ''; const [y, mo] = m.split('-'); return `${y}.${mo}`; };
 const metricLabels = (map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v.label]));
-
-const blankItem = (id, title, metricKeys) => {
+const blankItem = (id, title, keys) => {
   const base = { id, title, thumbnail: '', link: '', hypothesis: '', analysis: '', salesImpact: '', productCategory: '', initialScore: 0, w1Score: 0, w2Score: 0, w3Score: 0, w4Score: 0, finalScore: 0 };
-  metricKeys.forEach((k) => { base[k] = 0; });
-  return base;
+  keys.forEach((k) => { base[k] = 0; }); return base;
 };
-const FEED_KEYS = [...FEED_CORE, ...FEED_SUB];
-const CONTENT_KEYS = [...CONTENT_CORE, ...CONTENT_SUB];
-
 const lastNWeeksKeys = (weekMeta, selectedWeek, n) => {
-  const keys = weekMeta.map((w) => w.key);
-  const idx = keys.indexOf(selectedWeek);
-  if (idx < 0) return keys.slice(-n);
-  return keys.slice(Math.max(0, idx - n + 1), idx + 1);
+  const keys = weekMeta.map((w) => w.key); const idx = keys.indexOf(selectedWeek);
+  if (idx < 0) return keys.slice(-n); return keys.slice(Math.max(0, idx - n + 1), idx + 1);
 };
-
-const zeroAccount = () => {
-  const o = {};
-  ALL_ACCOUNT_KEYS.forEach((k) => { o[k] = 0; });
-  return o;
-};
+const zeroAccount = () => { const o = {}; ALL_ACCOUNT_KEYS.forEach((k) => { o[k] = 0; }); return o; };
+const initialWeekMeta = [{ key: 'W18', month: '2026-05' }, { key: 'W19', month: '2026-05' }, { key: 'W20', month: '2026-05' }, { key: 'W21', month: '2026-05' }, { key: 'W22', month: '2026-05' }, { key: 'W23', month: '2026-06' }, { key: 'W24', month: '2026-06' }];
 
 // ============================================================
-// 공용 UI 작은 컴포넌트
+// 프론트엔드 공용 마이크로 컴포넌트
 // ============================================================
 function Swatch({ color, size = 8 }) { return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '999px', background: color, flexShrink: 0 }} />; }
 function SectionLabel({ children, color = C.accent, sub }) {
@@ -122,8 +109,7 @@ function MetricPill({ metricsMap, mkey, value, big }) {
   const Icon = m.icon;
   return (
     <div className="flex items-center gap-1.5" style={{ color: C.ink }}>
-      <Swatch color={m.color} size={big ? 9 : 7} />
-      <Icon size={big ? 15 : 13} color={C.sub} strokeWidth={2} />
+      <Swatch color={m.color} size={big ? 9 : 7} /><Icon size={big ? 15 : 13} color={C.sub} strokeWidth={2} />
       <span style={{ fontSize: big ? 14 : 12, fontWeight: big ? 700 : 600 }}>{fmt(value)}</span>
       <span style={{ fontSize: big ? 12 : 11, color: C.sub }}>{m.label}</span>
     </div>
@@ -181,7 +167,6 @@ function NumberField({ label, value, onChange, width }) {
     </label>
   );
 }
-// 수정을 완료한 탭의 input 컴포넌트
 function TextField({ label, value, onChange, placeholder, width }) {
   return (
     <label className="flex flex-col gap-1" style={{ width: width || 'auto', flex: width ? 'none' : 1 }}>
@@ -207,9 +192,9 @@ function SyncBadge({ status }) {
 }
 
 // ============================================================
-// 콘텐츠 카드 컴포넌트
+// 비주얼 콘텐츠 카드
 // ============================================================
-function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, onSyncInsight, avgMetrics, showThumbnailUpload }) {
+function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, onSyncInsight, avgMetrics }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item);
   const [insightOpen, setInsightOpen] = useState(false);
@@ -237,6 +222,41 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, on
     onSave(draft); setEditing(false);
     if (onSyncInsight && (draft.hypothesis || draft.analysis)) onSyncInsight(draft);
   };
+
+  if (editing) {
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, boxShadow: SHADOW }}>
+        <div className="flex flex-wrap gap-3 mb-3"><TextField label="콘텐츠 제목" value={draft.title} onChange={set('title')} /></div>
+        <div className="flex flex-wrap gap-3 mb-3"><TextField label="콘텐츠 링크" value={draft.link} onChange={set('link')} placeholder="https://instagram.com/p/..." /></div>
+        <div style={{ fontSize: 11, color: C.accent, fontWeight: 700, marginBottom: 6 }}>핵심지표</div>
+        <div className="flex flex-wrap gap-3 mb-3">
+          {coreKeys.map((k) => <NumberField key={k} label={k === 'profileActivity' ? '프로필 활동 [수동 기입]' : metricsMap[k]?.label} value={draft[k]} onChange={set(k)} width={120} />)}
+        </div>
+        <div style={{ fontSize: 11, color: C.sub, fontWeight: 700, marginBottom: 6 }}>서브지표</div>
+        <div className="flex flex-wrap gap-3 mb-4">
+          {subKeys.map((k) => <NumberField key={k} label={metricsMap[k]?.label} value={draft[k]} onChange={set(k)} width={100} />)}
+        </div>
+        <div className="flex flex-wrap gap-3 mb-4">
+          <div style={{ flex: '1 1 240px' }}><TextAreaField label="🤔 가설" value={draft.hypothesis} onChange={set('hypothesis')} placeholder="발행 전 가설을 입력하세요." /></div>
+          <div style={{ flex: '1 1 240px' }}><TextAreaField label="📝 분석 & 추후 방안" value={draft.analysis} onChange={set('analysis')} placeholder="결과 분석을 입력하세요." /></div>
+        </div>
+        <div className="mb-4">
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 6 }}>제품군</div>
+          <div className="flex flex-wrap gap-2">
+            {[{ key: '', label: '미분류' }, ...PRODUCT_CATS].map((p) => (
+              <button key={p.key} onClick={() => setDraft((d) => ({ ...d, productCategory: p.key }))} style={{ fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${draft.productCategory === p.key ? (p.color || C.ink) : C.border}`, background: draft.productCategory === p.key ? `${p.color || C.ink}15` : '#fff', color: draft.productCategory === p.key ? (p.color || C.ink) : C.sub, cursor: 'pointer' }}>
+                {draft.productCategory === p.key ? '✓ ' : ''}{p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => { setEditing(false); setDraft(item); }} className="flex items-center gap-1" style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, fontWeight: 600 }}><X size={14} /> 취소</button>
+          <button onClick={handleSave} className="flex items-center gap-1" style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: 'none', background: C.accent, color: '#fff', fontWeight: 700 }}><Check size={14} /> 저장</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, boxShadow: SHADOW }}>
@@ -389,6 +409,9 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
   );
 }
 
+// ============================================================
+// 2. 국가별 대시보드 뷰 (CountryView)
+// ============================================================
 function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, countryInsights, onInsightChange, allContents, onAllContentsChange, onSyncContent }) {
   const country = COUNTRIES.find((c) => c.key === countryKey); const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const labelsA = metricLabels(ACCOUNT_METRICS);
@@ -512,9 +535,11 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   );
 }
 
+// ============================================================
+// 3. 피드 콘텐츠 대시보드 뷰 (FeedView)
+// ============================================================
 function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountMetrics, onFeedContentsChange, onSyncContent }) {
   const [selectedCountry, setSelectedCountry] = useState('KR'); const countryContents = feedContents[selectedCountry] || {}; const weekContents = countryContents[selectedWeek] || [];
-  const [showWeeklyChartTable, setShowWeeklyChartTable] = useState(false);
 
   const getFeedTotals = useCallback((weekKey) => {
     const list = feedContents[selectedCountry]?.[weekKey] || [];
@@ -580,7 +605,6 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountM
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>피드 주간 핵심지표 추이 비교 (최근 7주)</h3></div>
-          <button onClick={() => setShowWeeklyChartTable(!showWeeklyChartTable)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showWeeklyChartTable ? C.ink : '#fff', color: showWeeklyChartTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showWeeklyChartTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
         </div>
         <div style={{ width: '100%', height: 230 }}>
           <ResponsiveContainer>
