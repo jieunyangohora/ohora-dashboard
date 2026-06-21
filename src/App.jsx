@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, LabelList
+  ResponsiveContainer, Legend, Bar as RechartsBar
 } from 'recharts';
 import {
   Bookmark, Share2, UserCheck, Eye, Heart, MessageCircle, UserPlus,
   Plus, Trash2, Pencil, Check, X, ExternalLink, ChevronDown, ChevronUp,
   TrendingUp, TrendingDown, Minus, Loader2, RefreshCw, Settings, Target, 
-  Leaf, FileStack, Flame, LayoutDashboard, Globe, Rss, PlayCircle, 
-  ArrowDownToLine, MousePointerClick, Activity, NotebookPen
+  Leaf, FileText, Flame, LayoutDashboard, Globe, Rss, PlayCircle, 
+  ArrowDownToLine, MousePointerClick, Activity
 } from 'lucide-react';
 
 // ============================================================
@@ -32,7 +32,7 @@ const ACCOUNT_METRICS = {
   reach: { label: '도달수', icon: Eye, color: '#3E8FB0' }, organicReach: { label: '오가닉 도달', icon: Leaf, color: '#2E9E89' },
   views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' }, organicViews: { label: '오가닉 조회수', icon: Leaf, color: '#2E9E89' },
   engagement: { label: '참여수', icon: Activity, color: '#6C5CE7' }, newFollowers: { label: '신규 팔로우 수', icon: UserPlus, color: '#2E9E89' },
-  followers: { label: '팔로워(누적)', icon: UserCheck, color: '#2E9E89' }, contentsCount: { label: '콘텐츠 수', icon: FileStack, color: '#E08A2B' },
+  followers: { label: '팔로워(누적)', icon: UserCheck, color: '#2E9E89' }, contentsCount: { label: '콘텐츠 수', icon: FileText, color: '#E08A2B' },
   profileVisits: { label: '프로필 방문', icon: UserCheck, color: '#E8546B' }, websiteClicks: { label: '웹사이트 클릭', icon: MousePointerClick, color: '#E08A2B' },
   sales: { label: '매출', icon: TrendingUp, color: '#E8546B' }, inflow: { label: '유입', icon: ArrowDownToLine, color: '#2E9E89' },
   salesAchieveRate: { label: '매출 달성률', icon: Check, color: '#6C5CE7' }, inflowAchieveRate: { label: '유입 달성률', icon: Check, color: '#6C5CE7' },
@@ -117,7 +117,7 @@ const PRODUCT_CATS = [
 ];
 
 // ============================================================
-// 공용 UI 작은 컴포넌트 (React 명명규칙 수정 완료)
+// 공용 UI 작은 컴포넌트
 // ============================================================
 function Swatch({ color, size = 8 }) { return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '999px', background: color, flexShrink: 0 }} />; }
 function SectionLabel({ children, color = C.accent, sub }) {
@@ -143,7 +143,7 @@ function MetricPill({ metricsMap, mkey, value, big }) {
   const Icon = m.icon;
   return (
     <div className="flex items-center gap-1.5" style={{ color: C.ink }}>
-      <Swatch color={m.color} size={big ? 9 : 7} /><Icon size={big ? 15 : 13} color={C.sub} strokeWidth={2} />
+      <Swatch 7} 9 : ? color="{m.color}" size="{big"/><Icon 13} 15 : ? color="{C.sub}" size="{big" strokeWidth="{2}"/>
       <span style={{ fontSize: big ? 14 : 12, fontWeight: big ? 700 : 600 }}>{fmt(value)}</span>
       <span style={{ fontSize: big ? 12 : 11, color: C.sub }}>{m.label}</span>
     </div>
@@ -154,7 +154,7 @@ function DeltaTag({ value }) {
   const up = value > 0; const flat = value === 0;
   const color = flat ? C.sub : up ? C.mint : C.accent;
   const Icon = flat ? Minus : up ? TrendingUp : TrendingDown;
-  return <span className="flex items-center gap-0.5" style={{ color, fontSize: 12, fontWeight: 700 }}><Icon size={13} strokeWidth={2.5} />{pct(value)}</span>;
+  return <span className="flex items-center gap-0.5" style={{ color, fontSize: 12, fontWeight: 700 }}><Icon size="{13}" strokeWidth="{2.5}"/>{pct(value)}</span>;
 }
 function HeroCard({ metricsMap, mkey, value, delta, sub, infoText, accentColor }) {
   const m = metricsMap[mkey]; if (!m) return null;
@@ -163,10 +163,10 @@ function HeroCard({ metricsMap, mkey, value, delta, sub, infoText, accentColor }
     <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 150, boxShadow: SHADOW }}>
       {accentColor && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: accentColor }} />}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2"><Swatch color={m.color} size={10} /><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span>{infoText && <InfoTip text={infoText} />}</div>
-        <Icon size={16} color={m.color} />
+        <div className="flex items-center gap-2"><Swatch color="{m.color}" size="{10}"/><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span>{infoText && <InfoTip text="{infoText}"/>}</div>
+        <Icon color="{m.color}" size="{16}"/>
       </div>
-      <div className="flex items-end justify-between"><span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmtMetric(mkey, value)}</span><DeltaTag value={delta} /></div>
+      <div className="flex items-end justify-between"><span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmtMetric(mkey, value)}</span><DeltaTag value="{delta}"/></div>
       <div className="flex items-center justify-between" style={{ marginTop: 2 }}><span style={{ fontSize: 11, color: C.subLite }}>전주 대비</span>{sub}</div>
     </div>
   );
@@ -180,13 +180,13 @@ function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organi
     <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 190, boxShadow: SHADOW }}>
       {accentColor && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: accentColor }} />}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2"><Swatch color={m.color} size={10} /><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span></div>
-        <Icon size={16} color={m.color} />
+        <div className="flex items-center gap-2"><Swatch color="{m.color}" size="{10}"/><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span></div>
+        <Icon color="{m.color}" size="{16}"/>
       </div>
-      <div className="flex items-end justify-between"><span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmt(value)}</span><DeltaTag value={delta} /></div>
+      <div className="flex items-end justify-between"><span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmt(value)}</span><DeltaTag value="{delta}"/></div>
       <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5"><OmIcon size={13} color={om.color} strokeWidth={2.2} /><span style={{ fontSize: 11.5, color: C.sub, fontWeight: 600 }}>{om.label}</span></div>
+          <div className="flex items-center gap-1.5"><OmIcon color="{om.color}" size="{13}" strokeWidth="{2.2}"/><span style={{ fontSize: 11.5, color: C.sub, fontWeight: 600 }}>{om.label}</span></div>
           <div className="flex items-center gap-2"><span style={{ fontSize: 14, fontWeight: 800, color: om.color }}>{fmt(organicValue)}</span><span style={{ fontSize: 11, fontWeight: 700, color: C.sub, background: C.mintSoft, borderRadius: 999, padding: '1px 7px' }}>{ratio}%</span></div>
         </div>
       </div>
@@ -241,51 +241,51 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
       </div>
       <div style={{ marginTop: 14 }} />
 
-      <SectionLabel color={ACCOUNT_METRICS.sales.color}>매출 · 유입</SectionLabel>
+      <SectionLabel color="{ACCOUNT_METRICS.sales.color}">매출 · 유입</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="sales" value={val(tab, selectedWeek, 'sales')} delta={wowDelta(tab, 'sales')} accentColor={accent} sub={<span style={{ fontSize: 11, fontWeight: 700 }}>달성률 {fmtMetric('salesAchieveRate', val(tab, selectedWeek, 'salesAchieveRate'))}</span>} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="inflow" value={val(tab, selectedWeek, 'inflow')} delta={wowDelta(tab, 'inflow')} accentColor={accent} sub={<span style={{ fontSize: 11, fontWeight: 700 }}>달성률 {fmtMetric('inflowAchieveRate', val(tab, selectedWeek, 'inflowAchieveRate'))}</span>} />
+        <HeroCard 'sales')} 11, 700 accentColor="{accent}" delta="{wowDelta(tab," fontSize: fontWeight: metricsMap="{ACCOUNT_METRICS}" mkey="sales" selectedWeek, style="{{" sub="{<span" value="{val(tab," }}>달성률 {fmtMetric('salesAchieveRate', val(tab, selectedWeek, 'salesAchieveRate'))}</span>} />
+        <HeroCard 'inflow')} 11, 700 accentColor="{accent}" delta="{wowDelta(tab," fontSize: fontWeight: metricsMap="{ACCOUNT_METRICS}" mkey="inflow" selectedWeek, style="{{" sub="{<span" value="{val(tab," }}>달성률 {fmtMetric('inflowAchieveRate', val(tab, selectedWeek, 'inflowAchieveRate'))}</span>} />
       </div>
 
-      <SectionLabel color={ACCOUNT_METRICS.reach.color}>SNS 채널 · 도달 · 조회수 · 참여</SectionLabel>
+      <SectionLabel color="{ACCOUNT_METRICS.reach.color}">SNS 채널 · 도달 · 조회수 · 참여</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-3">
-        <ReachOrganicCard mkey="reach" organicKey="organicReach" value={val(tab, selectedWeek, 'reach')} organicValue={val(tab, selectedWeek, 'organicReach')} delta={wowDelta(tab, 'reach')} organicDelta={wowDelta(tab, 'organicReach')} accentColor={accent} />
-        <ReachOrganicCard mkey="views" organicKey="organicViews" value={val(tab, selectedWeek, 'views')} organicValue={val(tab, selectedWeek, 'organicViews')} delta={wowDelta(tab, 'views')} organicDelta={wowDelta(tab, 'organicViews')} accentColor={accent} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={val(tab, selectedWeek, 'engagement')} delta={wowDelta(tab, 'engagement')} accentColor={accent} />
+        <ReachOrganicCard 'organicReach')} 'reach')} accentColor="{accent}" delta="{wowDelta(tab," mkey="reach" organicDelta="{wowDelta(tab," organicKey="organicReach" organicValue="{val(tab," selectedWeek, value="{val(tab,"/>
+        <ReachOrganicCard 'organicViews')} 'views')} accentColor="{accent}" delta="{wowDelta(tab," mkey="views" organicDelta="{wowDelta(tab," organicKey="organicViews" organicValue="{val(tab," selectedWeek, value="{val(tab,"/>
+        <HeroCard 'engagement')} accentColor="{accent}" delta="{wowDelta(tab," metricsMap="{ACCOUNT_METRICS}" mkey="engagement" selectedWeek, value="{val(tab,"/>
       </div>
 
       <SectionLabel color="#E08A2B">콘텐츠 발행 · 타율</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-3">
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={val(tab, selectedWeek, 'contentsCount')} delta={wowDelta(tab, 'contentsCount')} accentColor={accent} />
-        <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={hitRateNow ?? 0} delta={hitRateDelta} accentColor={accent} />
+        <HeroCard 'contentsCount')} accentColor="{accent}" delta="{wowDelta(tab," metricsMap="{ACCOUNT_METRICS}" mkey="contentsCount" selectedWeek, value="{val(tab,"/>
+        <HeroCard '#2E9E89' '콘텐츠 0} ?? Target, accentColor="{accent}" color: delta="{hitRateDelta}" hitRate: icon: label: metricsMap="{{" mkey="hitRate" value="{hitRateNow" { } }} 타율',/>
       </div>
 
       <div className="mb-8 mt-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>[참고] 월간 매출 · 유입 · 도달 · 참여 추이</h3></div>
-          <button onClick={() => setShowMonthlyTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyTable ? C.ink : '#fff', color: showMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
+          <button onClick={() => setShowMonthlyTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyTable ? C.ink : '#fff', color: showMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showMonthlyTable ? <ChevronUp size="{13}"/> : <ChevronDown size="{13}"/>} 데이터표</button>
         </div>
         <div style={{ width: '100%', height: 200 }}>
           <ResponsiveContainer>
-            <LineChart data={monthlyTrendNorm} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip labels={labelsA} />} />
-              <Line type="monotone" dataKey="sales" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={2} dot={{ r: 2 }} />
-              <Line type="monotone" dataKey="inflow" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={2} dot={{ r: 2 }} />
-              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2} dot={{ r: 2 }} />
-              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2} dot={{ r: 2 }} />
+            <LineChart -10, 0 10, 15, bottom: data="{monthlyTrendNorm}" left: margin="{{" right: top: }}>
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/>
+              <XAxis 11, C.border C.sub axisLine="{{" dataKey="month" fill: fontSize: stroke: tick="{{" tickLine="{false}" }}/>
+              <YAxis 11, C.sub axisLine="{false}" fill: fontSize: tick="{{" tickLine="{false}" }}/>
+              <Tooltip content="{<ChartTooltip" labels="{labelsA}"/>} />
+              <Line 2 dataKey="sales" dot="{{" r: stroke="{ACCOUNT_METRICS.sales.color}" strokeWidth="{2}" type="monotone" }}/>
+              <Line 2 dataKey="inflow" dot="{{" r: stroke="{ACCOUNT_METRICS.inflow.color}" strokeWidth="{2}" type="monotone" }}/>
+              <Line 2 dataKey="reach" dot="{{" r: stroke="{ACCOUNT_METRICS.reach.color}" strokeWidth="{2}" type="monotone" }}/>
+              <Line 2 dataKey="engagement" dot="{{" r: stroke="{ACCOUNT_METRICS.engagement.color}" strokeWidth="{2}" type="monotone" }}/>
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <SectionLabel color={C.mint} sub="이번 주 발행 리스트 중 도달+참여 기반 최고 성과">🔥 고성과 TOP 3 요약 콘텐츠</SectionLabel>
+        <SectionLabel color="{C.mint}" sub="이번 주 발행 리스트 중 도달+참여 기반 최고 성과">🔥 고성과 TOP 3 요약 콘텐츠</SectionLabel>
         <div className="flex flex-col gap-2.5 mt-3">
           {top3Content.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>표시할 콘텐츠가 없습니다.</div>}
-          {top3Content.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={()=>{}} onDelete={()=>{}} avgMetrics={avgMetrics} />)}
+          {top3Content.map((item) => <ContentCard coreKeys="{CONTENT_CORE}" item="{item}" key="{item.id}" metricsMap="{CONTENT_METRICS}" onSave="{()=" subKeys="{CONTENT_SUB}">{}} onDelete={()=>{}} avgMetrics={avgMetrics} />)}
         </div>
       </div>
     </div>
@@ -329,33 +329,33 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
   return (
     <div>
-      <SectionLabel color={ACCOUNT_METRICS.sales.color}>매출 · 유입</SectionLabel>
+      <SectionLabel color="{ACCOUNT_METRICS.sales.color}">매출 · 유입</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
         {[{ k: 'sales', ar: 'salesAchieveRate' }, { k: 'inflow', ar: 'inflowAchieveRate' }].map(({ k, ar }) => (
-          <HeroCard key={k} metricsMap={ACCOUNT_METRICS} mkey={k} value={totals(selectedWeek)[k]} delta={wowDelta(k)} sub={<span style={{ fontSize: 11, fontWeight: 700 }}>달성률 {fmtMetric(ar, totals(selectedWeek)[ar])}</span>} />
+          <HeroCard 11, 700 delta="{wowDelta(k)}" fontSize: fontWeight: key="{k}" metricsMap="{ACCOUNT_METRICS}" mkey="{k}" style="{{" sub="{<span" value="{totals(selectedWeek)[k]}" }}>달성률 {fmtMetric(ar, totals(selectedWeek)[ar])}</span>} />
         ))}
       </div>
 
-      <SectionLabel color={ACCOUNT_METRICS.reach.color}>채널 핵심지표</SectionLabel>
+      <SectionLabel color="{ACCOUNT_METRICS.reach.color}">채널 핵심지표</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-6">
-        <ReachOrganicCard mkey="reach" organicKey="organicReach" value={totals(selectedWeek).reach} organicValue={totals(selectedWeek).organicReach} delta={wowDelta('reach')} organicDelta={wowDelta('organicReach')} />
-        <ReachOrganicCard mkey="views" organicKey="organicViews" value={totals(selectedWeek).views} organicValue={totals(selectedWeek).organicViews} delta={wowDelta('views')} organicDelta={wowDelta('organicViews')} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
+        <ReachOrganicCard delta="{wowDelta('reach')}" mkey="reach" organicDelta="{wowDelta('organicReach')}" organicKey="organicReach" organicValue="{totals(selectedWeek).organicReach}" value="{totals(selectedWeek).reach}"/>
+        <ReachOrganicCard delta="{wowDelta('views')}" mkey="views" organicDelta="{wowDelta('organicViews')}" organicKey="organicViews" organicValue="{totals(selectedWeek).organicViews}" value="{totals(selectedWeek).views}"/>
+        <HeroCard delta="{wowDelta('engagement')}" metricsMap="{ACCOUNT_METRICS}" mkey="engagement" value="{totals(selectedWeek).engagement}"/>
       </div>
 
-      {/* ⭐️ 주차별 성과 추이 차트 (최근 7주 메인 상단 배치) */}
+      
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 성과 추이 지수 비교 (최근 7주)</h3></div>
-          <button onClick={() => setShowPrimaryTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showPrimaryTable ? C.ink : '#fff', color: showPrimaryTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showPrimaryTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
+          <button onClick={() => setShowPrimaryTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showPrimaryTable ? C.ink : '#fff', color: showPrimaryTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showPrimaryTable ? <ChevronUp size="{13}"/> : <ChevronDown size="{13}"/>} 데이터표</button>
         </div>
         <div style={{ width: '100%', height: 240 }}>
           <ResponsiveContainer>
-            <LineChart data={primaryTrendNorm} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-              <Tooltip content={({active, payload, label}) => {
+            <LineChart -10, 0 10, 15, bottom: data="{primaryTrendNorm}" left: margin="{{" right: top: }}>
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/>
+              <XAxis 12, C.border C.sub axisLine="{{" dataKey="week" fill: fontSize: stroke: tick="{{" tickLine="{false}" }}/>
+              <YAxis 11, C.sub axisLine="{false}" fill: fontSize: tick="{{" tickLine="{false}" }}/>
+              <Tooltip content="{({active," payload,> {
                 if(!active || !payload?.length) return null;
                 return (
                   <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: SHADOW }}>
@@ -369,26 +369,26 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                   </div>
                 );
               }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsA[v] || v} />
-              <Line type="monotone" dataKey="sales" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="inflow" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 3 }} />
-            </LineChart>
+              <Legend 12 fontSize: formatter="{(v)" wrapperStyle="{{" }}> labelsA[v] || v} />
+              <Line 3 dataKey="sales" dot="{{" r: stroke="{ACCOUNT_METRICS.sales.color}" strokeWidth="{2.5}" type="monotone" }}/>
+              <Line 3 dataKey="inflow" dot="{{" r: stroke="{ACCOUNT_METRICS.inflow.color}" strokeWidth="{2.5}" type="monotone" }}/>
+              <Line 3 dataKey="reach" dot="{{" r: stroke="{ACCOUNT_METRICS.reach.color}" strokeWidth="{2.5}" type="monotone" }}/>
+              <Line 3 dataKey="engagement" dot="{{" r: stroke="{ACCOUNT_METRICS.engagement.color}" strokeWidth="{2.5}" type="monotone" }}/>
+            </Legend></Tooltip></LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="mb-6" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-        <div className="flex items-center gap-2 mb-2"><NotebookPen size={16} color={C.accent} /><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주간 전체 인사이트 · {selectedWeek}</h3><span style={{ fontSize: 11, color: C.sub, marginLeft: 'auto' }}>시트 실시간 자동 저장</span></div>
-        <TextAreaField value={countryInsights[countryKey]?.[selectedWeek] || ''} onChange={(v) => onInsightChange(countryKey, selectedWeek, v)} placeholder="이번 주 분석 인사이트를 입력하세요." rows={4} />
+        <div className="flex items-center gap-2 mb-2"><Pencil color="{C.accent}" size="{16}"/><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주간 전체 인사이트 · {selectedWeek}</h3><span style={{ fontSize: 11, color: C.sub, marginLeft: 'auto' }}>시트 실시간 자동 저장</span></div>
+        <TextAreaField ''} onChange="{(v)" value="{countryInsights[countryKey]?.[selectedWeek]" ||> onInsightChange(countryKey, selectedWeek, v)} placeholder="이번 주 분석 인사이트를 입력하세요." rows={4} />
       </div>
 
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>🏆 상위 콘텐츠 (도달+참여수 기준)</h3>
         <div className="flex flex-col gap-2.5 mt-2">
           {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>콘텐츠가 없습니다.</div>}
-          {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} avgMetrics={avgMetrics} />)}
+          {topContent.map((item) => <ContentCard avgMetrics="{avgMetrics}" coreKeys="{CONTENT_CORE}" item="{item}" key="{item.id}" metricsMap="{CONTENT_METRICS}" onDelete="{deleteAllItem}" onSave="{updateAllItem}" subKeys="{CONTENT_SUB}"/>)}
         </div>
       </div>
 
@@ -396,18 +396,18 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
         <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>📉 하위 콘텐츠 (도달+참여수 기준)</h3>
         <div className="flex flex-col gap-2.5 mt-2">
           {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>콘텐츠가 없습니다.</div>}
-          {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} avgMetrics={avgMetrics} />)}
+          {bottomContent.map((item) => <ContentCard avgMetrics="{avgMetrics}" coreKeys="{CONTENT_CORE}" item="{item}" key="{item.id}" metricsMap="{CONTENT_METRICS}" onDelete="{deleteAllItem}" onSave="{updateAllItem}" subKeys="{CONTENT_SUB}"/>)}
         </div>
       </div>
 
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <button onClick={() => setShowAllList(!showAllList)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>📦 게시 전체 콘텐츠 목록 ({weekItems.length}건)</h3>
-          {showAllList ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}
+          {showAllList ? <ChevronUp color="{C.sub}" size="{18}"/> : <ChevronDown color="{C.sub}" size="{18}"/>}
         </button>
         {showAllList && (
           <div className="flex flex-col gap-2.5 mt-4">
-            {weekItems.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} avgMetrics={avgMetrics} />)}
+            {weekItems.map((item) => <ContentCard avgMetrics="{avgMetrics}" coreKeys="{CONTENT_CORE}" item="{item}" key="{item.id}" metricsMap="{CONTENT_METRICS}" onDelete="{deleteAllItem}" onSave="{updateAllItem}" subKeys="{CONTENT_SUB}"/>)}
           </div>
         )}
       </div>
@@ -416,13 +416,13 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}><div><h3 style={{ fontSize: 13, fontWeight: 800, color: C.sub }}>[참고] 월간 누적 추이</h3></div></div>
         <div style={{ width: '100%', height: 140 }}>
           <ResponsiveContainer>
-            <LineChart data={monthlyTrendNorm}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip content={<ChartTooltip labels={labelsA} />} />
-              <Line type="monotone" dataKey="sales" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="inflow" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={1.5} dot={false} />
+            <LineChart data="{monthlyTrendNorm}">
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/>
+              <XAxis 11 dataKey="month" fontSize: tick="{{" }}/><YAxis 11 fontSize: tick="{{" }}/><Tooltip content="{<ChartTooltip" labels="{labelsA}"/>} />
+              <Line dataKey="sales" dot="{false}" stroke="{ACCOUNT_METRICS.sales.color}" strokeWidth="{1.5}" type="monotone"/>
+              <Line dataKey="inflow" dot="{false}" stroke="{ACCOUNT_METRICS.inflow.color}" strokeWidth="{1.5}" type="monotone"/>
+              <Line dataKey="reach" dot="{false}" stroke="{ACCOUNT_METRICS.reach.color}" strokeWidth="{1.5}" type="monotone"/>
+              <Line dataKey="engagement" dot="{false}" stroke="{ACCOUNT_METRICS.engagement.color}" strokeWidth="{1.5}" type="monotone"/>
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -433,7 +433,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
 function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountMetrics, onFeedContentsChange, onSyncContent }) {
   const [selectedCountry, setSelectedCountry] = useState('KR'); const countryContents = feedContents[selectedCountry] || {}; const weekContents = countryContents[selectedWeek] || [];
-  const [showWeeklyChartTable, setShowWeeklyChartTable] = useState(false); const [showMonthlyTable, setShowMonthlyTable] = useState(false);
+  const [showWeeklyChartTable, setShowWeeklyChartTable] = useState(false);
 
   const getFeedTotals = useCallback((weekKey) => {
     const list = feedContents[selectedCountry]?.[weekKey] || [];
@@ -485,66 +485,66 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountM
 
   return (
     <div>
-      <SectionLabel color={C.ink}>피드 성과 요약 카드</SectionLabel>
+      <SectionLabel color="{C.ink}">피드 성과 요약 카드</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
-        <HeroCard metricsMap={CONTENT_METRICS} mkey="reach" value={currentTotals.reach} delta={calcFeedDelta('reach')} />
-        <HeroCard metricsMap={CONTENT_METRICS} mkey="engagement" value={currentTotals.engagement} delta={calcFeedDelta('engagement')} />
+        <HeroCard delta="{calcFeedDelta('reach')}" metricsMap="{CONTENT_METRICS}" mkey="reach" value="{currentTotals.reach}"/>
+        <HeroCard delta="{calcFeedDelta('engagement')}" metricsMap="{CONTENT_METRICS}" mkey="engagement" value="{currentTotals.engagement}"/>
       </div>
       <div className="flex flex-wrap gap-3 mb-6" style={{ marginTop: 10 }}>
-        {['likes', 'comments', 'saves', 'shares'].map(k => <HeroCard key={k} metricsMap={CONTENT_METRICS} mkey={k} value={currentTotals[k]} delta={calcFeedDelta(k)} />)}
+        {['likes', 'comments', 'saves', 'shares'].map(k => <HeroCard delta="{calcFeedDelta(k)}" key="{k}" metricsMap="{CONTENT_METRICS}" mkey="{k}" value="{currentTotals[k]}"/>)}
       </div>
 
-      {/* ⭐️ 피드 주간 핵심지표 추이 비교 (상단 메인 배치) */}
+      
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>피드 주간 핵심지표 추이 비교 (최근 7주)</h3></div>
-          <button onClick={() => setShowWeeklyChartTable(!showWeeklyChartTable)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showWeeklyChartTable ? C.ink : '#fff', color: showWeeklyChartTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showWeeklyChartTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
+          <button onClick={() => setShowWeeklyChartTable(!showWeeklyChartTable)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showWeeklyChartTable ? C.ink : '#fff', color: showWeeklyChartTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showWeeklyChartTable ? <ChevronUp size="{13}"/> : <ChevronDown size="{13}"/>} 데이터표</button>
         </div>
         <div style={{ width: '100%', height: 230 }}>
           <ResponsiveContainer>
-            <LineChart data={weeklyTrendNorm} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip labels={feedLabels} />} /><Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => feedLabels[v] || v} />
-              <Line type="monotone" dataKey="reach" stroke={CONTENT_METRICS.reach.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="engagement" stroke={CONTENT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="saves" stroke={FEED_METRICS.saves.color} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="shares" stroke={FEED_METRICS.shares.color} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="profileActivity" stroke={FEED_METRICS.profileActivity.color} strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
+            <LineChart -10, 0 10, 15, bottom: data="{weeklyTrendNorm}" left: margin="{{" right: top: }}>
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/>
+              <XAxis 12, C.border C.sub axisLine="{{" dataKey="week" fill: fontSize: stroke: tick="{{" tickLine="{false}" }}/>
+              <YAxis 11, C.sub axisLine="{false}" fill: fontSize: tick="{{" tickLine="{false}" }}/>
+              <Tooltip content="{<ChartTooltip" labels="{feedLabels}"/>} /><Legend 12 fontSize: formatter="{(v)" wrapperStyle="{{" }}> feedLabels[v] || v} />
+              <Line 3 dataKey="reach" dot="{{" r: stroke="{CONTENT_METRICS.reach.color}" strokeWidth="{2.5}" type="monotone" }}/>
+              <Line 3 dataKey="engagement" dot="{{" r: stroke="{CONTENT_METRICS.engagement.color}" strokeWidth="{2.5}" type="monotone" }}/>
+              <Line 3 dataKey="saves" dot="{{" r: stroke="{FEED_METRICS.saves.color}" strokeWidth="{2}" type="monotone" }}/>
+              <Line 3 dataKey="shares" dot="{{" r: stroke="{FEED_METRICS.shares.color}" strokeWidth="{2}" type="monotone" }}/>
+              <Line 3 dataKey="profileActivity" dot="{{" r: stroke="{FEED_METRICS.profileActivity.color}" strokeWidth="{2}" type="monotone" }}/>
+            </Legend></LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW, marginBottom: 24 }}>
-        <div className="flex items-center gap-2 mb-4"><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 피드 발생 팔로우 · 계정 전체 신규 팔로우 증감률</h3><InfoTip text="피드 콘텐츠만의 합계가 아닌 계정 전체 신규 팔로워 증감률 현황입니다." /></div>
+        <div className="flex items-center gap-2 mb-4"><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 피드 발생 팔로우 · 계정 전체 신규 팔로우 증감률</h3><InfoTip text="피드 콘텐츠만의 합계가 아닌 계정 전체 신규 팔로워 증감률 현황입니다."/></div>
         <div style={{ width: '100%', height: 200 }}>
           <ResponsiveContainer>
-            <ComposedChart data={accountFollowerCompare} margin={{ top: 15, right: 30, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} /><XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} /><YAxis yAxisId="left" tick={{ fontSize: 11, fill: C.sub }} /><YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: C.sub }} unit="%" /><Tooltip content={<ChartTooltip labels={{ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률' }} />} />
-              <Bar yAxisId="left" dataKey="feedFollows" fill={FEED_METRICS.profileActivity.color} radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="accountGrowthRate" stroke={ACCOUNT_METRICS.newFollowers.color} strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
+            <ComposedChart -10, 0 15, 30, bottom: data="{accountFollowerCompare}" left: margin="{{" right: top: }}>
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/><XAxis 12, C.sub dataKey="week" fill: fontSize: tick="{{" }}/><YAxis 11, C.sub fill: fontSize: tick="{{" yAxisId="left" }}/><YAxis 11, C.sub fill: fontSize: orientation="right" tick="{{" unit="%" yAxisId="right" }}/><Tooltip '계정 '피드 accountGrowthRate: content="{<ChartTooltip" feedFollows: labels="{{" }} 발생 신규 증감률' 팔로우 팔로우',/>} />
+              <Bar 0, 0]} 4, dataKey="feedFollows" fill="{FEED_METRICS.profileActivity.color}" radius="{[4," yAxisId="left"/>
+              <Line 4 connectNulls dataKey="accountGrowthRate" dot="{{" r: stroke="{ACCOUNT_METRICS.newFollowers.color}" strokeWidth="{2.5}" type="monotone" yAxisId="right" }}/>
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <button onClick={addContent} className="flex items-center gap-1 mb-4" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff' }}><Plus size={14} /> 피드 콘텐츠 추가</button>
+      <button onClick={addContent} className="flex items-center gap-1 mb-4" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff' }}><Plus size="{14}"/> 피드 콘텐츠 추가</button>
       <div className="flex flex-col gap-2.5 mb-8">
         {weekContents.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '24px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 피드 콘텐츠가 없습니다.</div>}
-        {weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} onSave={updateContent} onDelete={deleteContent} avgMetrics={null} />)}
+        {weekContents.map((item) => <ContentCard avgMetrics="{null}" coreKeys="{FEED_CORE}" item="{item}" key="{item.id}" metricsMap="{FEED_METRICS}" onDelete="{deleteContent}" onSave="{updateContent}" subKeys="{FEED_SUB}"/>)}
       </div>
 
       <div className="mb-4" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}><div><h3 style={{ fontSize: 14, fontWeight: 800, color: C.sub }}>[참고] 피드 월간 지표 추이 (저장·공유·프로필 활동)</h3></div></div>
         <div style={{ width: '100%', height: 160 }}>
           <ResponsiveContainer>
-            <LineChart data={monthlyTrendNorm}>
-              <CartesianGrid stroke={C.border} vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip content={<ChartTooltip labels={feedLabels} />} />
-              <Line type="monotone" dataKey="saves" stroke={FEED_METRICS.saves.color} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="shares" stroke={FEED_METRICS.shares.color} strokeWidth={1.5} dot={false} />
-              <Line type="monotone" dataKey="profileActivity" stroke={FEED_METRICS.profileActivity.color} strokeWidth={1.5} dot={false} />
+            <LineChart data="{monthlyTrendNorm}">
+              <CartesianGrid stroke="{C.border}" vertical="{false}"/><XAxis 11 dataKey="month" fontSize: tick="{{" }}/><YAxis 11 fontSize: tick="{{" }}/><Tooltip content="{<ChartTooltip" labels="{feedLabels}"/>} />
+              <Line dataKey="saves" dot="{false}" stroke="{FEED_METRICS.saves.color}" strokeWidth="{1.5}" type="monotone"/>
+              <Line dataKey="shares" dot="{false}" stroke="{FEED_METRICS.shares.color}" strokeWidth="{1.5}" type="monotone"/>
+              <Line dataKey="profileActivity" dot="{false}" stroke="{FEED_METRICS.profileActivity.color}" strokeWidth="{1.5}" type="monotone"/>
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -594,14 +594,16 @@ export default function App() {
     setShowGasPanel(false); window.location.reload(); 
   };
 
+  const mtKeys = useMemo(() => weekMeta.map((w) => w.key), [weekMeta]);
+  const endIdx = useMemo(() => mtKeys.indexOf(selectedWeek), [mtKeys, selectedWeek]);
+  const displayWeeks = useMemo(() => mtKeys.slice(Math.max(0, endIdx - 6), endIdx + 1), [mtKeys, endIdx]);
+
   const onInsightChange = useCallback((country, week, value) => {
     const next = { ...countryInsights, [country]: { ...countryInsights[country], [week]: value } }; setCountryInsights(next);
     clearTimeout(insightSyncTimer.current); insightSyncTimer.current = setTimeout(() => { syncToGAS({ type: 'weekly', country, week, insight: value }); }, 1000);
   }, [countryInsights, syncToGAS]);
 
-  if (loading) return <div className="flex items-center justify-center" style={{ height: '100vh', fontFamily: FONT, color: C.sub }}><RefreshCw className="animate-spin" size={18} style={{ marginRight: 6 }} /> 구글 시트 연동 중...</div>;
-
-  const weekKeys = weekMeta.map((w) => w.key); const endIdx = weekKeys.indexOf(selectedWeek); const displayWeeks = weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1);
+  if (loading) return <div className="flex items-center justify-center" style={{ height: '100vh', fontFamily: FONT, color: C.sub }}><RefreshCw 6 className="animate-spin" marginRight: size="{18}" style="{{" }}/> 구글 시트 연동 중...</div>;
 
   return (
     <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100vh', color: C.ink }}>
@@ -609,14 +611,14 @@ export default function App() {
         <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
           <div><h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>한/미 SNS 성과 대시보드</h1></div>
           <div className="flex gap-1.5 flex-wrap justify-end">
-            {weekKeys.map((w) => <button key={w} onClick={() => setSelectedWeek(w)} style={{ padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1px solid ${w === selectedWeek ? C.accent : C.border}`, background: w === selectedWeek ? C.accent : '#fff', color: w === selectedWeek ? '#fff' : C.sub }}>{w}</button>)}
+            {mtKeys.map((w) => <button key={w} onClick={() => setSelectedWeek(w)} style={{ padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1px solid ${w === selectedWeek ? C.accent : C.border}`, background: w === selectedWeek ? C.accent : '#fff', color: w === selectedWeek ? '#fff' : C.sub }}>{w}</button>)}
           </div>
         </div>
 
         <div className="flex gap-1.5 flex-wrap mb-6">
           {NAV.map((n) => {
             const Icon = n.icon; const active = view === n.key;
-            return <button key={n.key} onClick={() => setView(n.key)} className="flex items-center gap-1.5" style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${active ? C.ink : C.border}`, background: active ? C.ink : '#fff', color: active ? '#fff' : C.ink }}><Icon size={14} /> {n.label}</button>
+            return <button key={n.key} onClick={() => setView(n.key)} className="flex items-center gap-1.5" style={{ padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, border: `1px solid ${active ? C.ink : C.border}`, background: active ? C.ink : '#fff', color: active ? '#fff' : C.ink }}><Icon size="{14}"/> {n.label}</button>
           })}
         </div>
 
@@ -624,21 +626,21 @@ export default function App() {
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 12 }}>구글 시트 웹앱 URL 설정</div>
             <div className="flex gap-2">
-              <input type="text" value={gasInput} onChange={(e) => setGasInput(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' }} />
+              <input type="text" value={gasInput} onChange={(e) => setGasInput(e.target.value)} placeholder="[https://script.google.com/macros/s/.../exec](https://script.google.com/macros/s/.../exec)" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' }} />
               <button onClick={saveGasUrl} style={{ padding: '8px 16px', borderRadius: 8, background: C.mint, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>저장</button>
             </div>
           </div>
         )}
 
-        {view === 'summary' && <SummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} accountMetrics={accountMetrics} allContents={allContents} />}
-        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} accountMetrics={accountMetrics} countryInsights={countryInsights} onInsightChange={onInsightChange} allContents={allContents} onAllContentsChange={handleAllContentsChange} onSyncContent={syncToGAS} />}
-        {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} feedContents={feedContents} accountMetrics={accountMetrics} onFeedContentsChange={handleFeedContentsChange} onSyncContent={syncToGAS} />}
+        {view === 'summary' && <SummaryView accountMetrics="{accountMetrics}" allContents="{allContents}" displayWeeks="{displayWeeks}" selectedWeek="{selectedWeek}" weekMeta="{weekMeta}"/>}
+        {(view === 'KR' || view === 'US') && <CountryView accountMetrics="{accountMetrics}" allContents="{allContents}" countryInsights="{countryInsights}" countryKey="{view}" displayWeeks="{displayWeeks}" onAllContentsChange="{handleAllContentsChange}" onInsightChange="{onInsightChange}" onSyncContent="{syncToGAS}" selectedWeek="{selectedWeek}" weekMeta="{weekMeta}"/>}
+        {view === 'feed' && <FeedView accountMetrics="{accountMetrics}" displayWeeks="{displayWeeks}" feedContents="{feedContents}" onFeedContentsChange="{handleFeedContentsChange}" onSyncContent="{syncToGAS}" selectedWeek="{selectedWeek}" weekMeta="{weekMeta}"/>}
 
         <div style={{ fontSize: 11, color: C.subLite, textAlign: 'center', marginTop: 30 }}>
           모든 데이터는 시트 원본을 바라보고 있으며, 인사이트 수정시 시트에 자동 기록됩니다.
           <div className="flex items-center justify-center gap-3" style={{ marginTop: 10 }}>
-            <SyncBadge status={syncStatus} />
-            <button onClick={() => setShowGasPanel((v) => !v)} title="구글시트 연동 설정" style={{ padding: 5, borderRadius: 6, border: `1px solid ${gasUrl ? C.mint : C.border}`, background: 'transparent', color: gasUrl ? C.mint : C.border, cursor: 'pointer' }}><Settings size={12} /></button>
+            <SyncBadge status="{syncStatus}"/>
+            <button onClick={() => setShowGasPanel((v) => !v)} title="구글시트 연동 설정" style={{ padding: 5, borderRadius: 6, border: `1px solid ${gasUrl ? C.mint : C.border}`, background: 'transparent', color: gasUrl ? C.mint : C.border, cursor: 'pointer' }}><Settings size="{12}"/></button>
           </div>
         </div>
       </div>
