@@ -16,8 +16,7 @@ export const C = {
 };
 
 export const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-const SHADOW = '0 1px 3px rgba(40,28,18,0.05), 0 1px 2px rgba(40,28,18,0.03)';
-export { SHADOW };
+export const SHADOW = '0 1px 3px rgba(40,28,18,0.05), 0 1px 2px rgba(40,28,18,0.03)';
 
 export const COUNTRIES = [
   { key: 'KR', label: '한국', flag: '🇰🇷', color: '#E8546B' },
@@ -93,8 +92,21 @@ export const initialWeekMeta = [
   { key: 'W24', month: '2026-06' },
 ];
 
+// 샘플 뷰 전용 데이터셋 복구 완료
+export const initialAccountMetrics = {
+  KR: {
+    W22: { sales: 335000000, inflow: 281000, salesAchieveRate: 110, inflowAchieveRate: 105, pace: 102, reach: 4970000, organicReach: 1970000, views: 7210000, organicViews: 3100000, engagement: 167000, newFollowers: 1460, followers: 79800, contentsCount: 7, profileVisits: 24200, websiteClicks: 4200 },
+    W23: { sales: 475000000, inflow: 260000, salesAchieveRate: 154, inflowAchieveRate: 130, pace: 140, reach: 5720000, organicReach: 2320000, views: 8650000, organicViews: 3560000, engagement: 243000, newFollowers: 2140, followers: 81900, contentsCount: 7, profileVisits: 29100, websiteClicks: 4700 },
+    W24: { sales: 365000000, inflow: 216000, salesAchieveRate: 120, inflowAchieveRate: 111, pace: 115, reach: 4790000, organicReach: 1290000, views: 7800000, organicViews: 2050000, engagement: 125000, newFollowers: 1260, followers: 83200, contentsCount: 7, profileVisits: 17900, websiteClicks: 3900 },
+  },
+  US: {
+    W22: { sales: 430000000, inflow: 277000, salesAchieveRate: 96, inflowAchieveRate: 94, pace: 99, reach: 7810000, organicReach: 7430000, views: 11630000, organicViews: 11110000, engagement: 317000, newFollowers: 2130, followers: 110500, contentsCount: 25, profileVisits: 15300, websiteClicks: 2700 },
+    W23: { sales: 442000000, inflow: 291000, salesAchieveRate: 102, inflowAchieveRate: 98, pace: 101, reach: 3210000, organicReach: 2930000, views: 5240000, organicViews: 4760000, engagement: 128000, newFollowers: 960, followers: 111500, contentsCount: 15, profileVisits: 8600, websiteClicks: 1300 },
+    W24: { sales: 339000000, inflow: 259000, salesAchieveRate: 92, inflowAchieveRate: 89, pace: 90, reach: 4420000, organicReach: 4140000, views: 7220000, organicViews: 6740000, engagement: 206000, newFollowers: 1341, followers: 112800, contentsCount: 14, profileVisits: 8300, websiteClicks: 900 },
+  }
+};
+
 export const initialFeedContents = { KR: {}, US: {} };
 export const initialAllContents = { KR: {}, US: {} };
-export const initialAccountMetrics = { KR: {}, US: {} };
 export const initialCountryInsights = { KR: {}, US: {} };
 export const initialProductSales = { KR: {}, US: {} };

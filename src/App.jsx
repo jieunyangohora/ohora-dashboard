@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Plus, Trash2, Pencil, Check, X, ExternalLink, ChevronDown, ChevronUp, Minus, Loader2, RefreshCw, Settings, Target, Flame } from 'lucide-react';
+import { Bookmark, Share2, UserCheck, Eye, Heart, MessageCircle, UserPlus, Plus, Trash2, Pencil, Check, X, ExternalLink, ChevronDown, ChevronUp, Minus, RefreshCw, Settings, Target, Flame, CheckCircle, AlertCircle } from 'lucide-react';
 
-// 위에서 만든 data.js로부터 원본 데이터 깔끔하게 수집
 import {
   C, FONT, SHADOW, COUNTRIES, NAV, ACCOUNT_METRICS, ALL_ACCOUNT_KEYS,
   CONTENT_METRICS, CONTENT_CORE, CONTENT_SUB, FEED_METRICS, FEED_CORE,
@@ -10,9 +9,6 @@ import {
   initialAllContents, initialAccountMetrics, initialCountryInsights, initialProductSales
 } from './data';
 
-// ============================================================
-// 헬퍼 함수 및 공용 유틸
-// ============================================================
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const pct = (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 const fmtMetric = (mkey, value) => {
@@ -26,8 +22,7 @@ const metricLabels = (map) => Object.fromEntries(Object.entries(map).map(([k, v]
 
 const blankItem = (id, title, keys) => {
   const base = { id, title, thumbnail: '', link: '', hypothesis: '', analysis: '', salesImpact: '', productCategory: '', initialScore: 0, w1Score: 0, w2Score: 0, w3Score: 0, w4Score: 0, finalScore: 0 };
-  keys.forEach((k) => { base[k] = 0; });
-  return base;
+  keys.forEach((k) => { base[k] = 0; }); return base;
 };
 
 const lastNWeeksKeys = (weekMeta, selectedWeek, n) => {
@@ -43,13 +38,7 @@ const zeroAccount = () => {
   return o;
 };
 
-// ============================================================
-// 하위 공용 UI 컴포넌트들
-// ============================================================
-function Swatch({ color, size = 8 }) {
-  return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '999px', background: color, flexShrink: 0 }} />;
-}
-
+function Swatch({ color, size = 8 }) { return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '999px', background: color, flexShrink: 0 }} />; }
 function SectionLabel({ children, color = C.accent, sub }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px' }}>
@@ -71,13 +60,11 @@ function InfoTip({ text }) {
 }
 
 function MetricPill({ metricsMap, mkey, value, big }) {
-  const m = metricsMap[mkey];
-  if (!m) return null;
+  const m = metricsMap[mkey]; if (!m) return null;
   const Icon = m.icon;
   return (
     <div className="flex items-center gap-1.5" style={{ color: C.ink }}>
-      <Swatch color={m.color} size={big ? 9 : 7} />
-      <Icon size={big ? 15 : 13} color={C.sub} strokeWidth={2} />
+      <Swatch color={m.color} size={big ? 9 : 7} /><Icon size={big ? 15 : 13} color={C.sub} strokeWidth={2} />
       <span style={{ fontSize: big ? 14 : 12, fontWeight: big ? 700 : 600 }}>{fmt(value)}</span>
       <span style={{ fontSize: big ? 12 : 11, color: C.sub }}>{m.label}</span>
     </div>
@@ -86,16 +73,14 @@ function MetricPill({ metricsMap, mkey, value, big }) {
 
 function DeltaTag({ value }) {
   if (value === null || value === undefined || !isFinite(value)) return <span style={{ fontSize: 12, color: C.sub }}>—</span>;
-  const up = value > 0;
-  const flat = value === 0;
+  const up = value > 0; const flat = value === 0;
   const color = flat ? C.sub : up ? C.mint : C.accent;
   const Icon = flat ? Minus : up ? TrendingUp : TrendingDown;
   return <span className="flex items-center gap-0.5" style={{ color, fontSize: 12, fontWeight: 700 }}><Icon size={13} strokeWidth={2.5} />{pct(value)}</span>;
 }
 
 function HeroCard({ metricsMap, mkey, value, delta, sub, infoText, accentColor }) {
-  const m = metricsMap[mkey];
-  if (!m) return null;
+  const m = metricsMap[mkey]; if (!m) return null;
   const Icon = m.icon;
   return (
     <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 150, boxShadow: SHADOW }}>
@@ -111,11 +96,9 @@ function HeroCard({ metricsMap, mkey, value, delta, sub, infoText, accentColor }
 }
 
 function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organicDelta, accentColor }) {
-  const m = ACCOUNT_METRICS[mkey];
-  const om = ACCOUNT_METRICS[organicKey];
+  const m = ACCOUNT_METRICS[mkey]; const om = ACCOUNT_METRICS[organicKey];
   if (!m || !om) return null;
-  const Icon = m.icon;
-  const OmIcon = om.icon;
+  const Icon = m.icon; const OmIcon = om.icon;
   const ratio = value > 0 ? Math.round((organicValue / value) * 100) : 0;
   return (
     <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 190, boxShadow: SHADOW }}>
@@ -135,20 +118,33 @@ function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organi
   );
 }
 
-function SyncBadge({ status }) {
-  if (status === 'idle') return null;
-  const map = {
-    syncing: { icon: RefreshCw, text: '동기화 중...', color: C.sub },
-    ok: { icon: Check, text: '시트 저장됨', color: C.mint },
-    error: { icon: X, text: '연동 실패', color: C.accent }
-  };
-  const m = map[status];
-  if (!m) return null;
-  const Icon = m.icon;
-  return <span className="flex items-center gap-1" style={{ fontSize: 11, fontWeight: 700, color: m.color, padding: '4px 10px', borderRadius: 999, border: `1px solid ${m.color}22`, background: `${m.color}11` }}><Icon size={12} className={status === 'syncing' ? "animate-spin" : ""} />{m.text}</span>;
+function NumberField({ label, value, onChange, width }) {
+  return (
+    <label className="flex flex-col gap-1" style={{ width: width || 'auto' }}>
+      <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>{label}</span>
+      <input type="number" value={value} onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 13, width: '100%', background: '#fff', color: C.ink }} />
+    </label>
+  );
 }
 
-// ✅ 옵셔널 체이닝(?.)을 강화하여 런타임 빈 페이로드 크래시 완벽 차단
+function TextField({ label, value, onChange, placeholder, width }) {
+  return (
+    <label className="flex flex-col gap-1" style={{ width: width || 'auto', flex: width ? 'none' : 1 }}>
+      <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>{label}</span>
+      <input type="text" value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 13, width: '100%', background: '#fff', color: C.ink }} />
+    </label>
+  );
+}
+
+function TextAreaField({ label, value, onChange, placeholder, rows = 3 }) {
+  return (
+    <label className="flex flex-col gap-1" style={{ width: '100%' }}>
+      {label && <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>{label}</span>}
+      <textarea value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} rows={rows} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%', background: '#fff', color: C.ink, resize: 'vertical', fontFamily: FONT }} />
+    </label>
+  );
+}
+
 function ChartTooltip({ active, payload, label, labels }) {
   if (!active || !payload?.length) return null;
   return (
@@ -166,9 +162,6 @@ function ChartTooltip({ active, payload, label, labels }) {
   );
 }
 
-// ============================================================
-// 콘텐츠 리스트 카드 컴포넌트
-// ============================================================
 function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, onSyncInsight, avgMetrics }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item);
@@ -178,8 +171,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, on
 
   const standout = useMemo(() => {
     if (!avgMetrics) return null;
-    let best = null;
-    let maxPct = 0;
+    let best = null; let maxPct = 0;
     ['saves', 'shares', 'comments', 'likes', 'reach', 'engagement'].forEach(k => {
        if (avgMetrics[k] > 50 && item[k] > 0) { 
          const pct = ((item[k] - avgMetrics[k]) / avgMetrics[k]) * 100;
@@ -195,8 +187,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, on
   }, [item, avgMetrics]);
 
   const handleSave = () => {
-    onSave(draft);
-    setEditing(false);
+    onSave(draft); setEditing(false);
     if (onSyncInsight && (draft.hypothesis || draft.analysis)) onSyncInsight(draft);
   };
 
@@ -215,7 +206,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, on
         </div>
         <div className="flex flex-wrap gap-3 mb-4">
           <div style={{ flex: '1 1 240px' }}><TextAreaField label="🤔 가설" value={draft.hypothesis} onChange={set('hypothesis')} placeholder="가설을 입력하세요." /></div>
-          <div style={{ flex: '1 1 240px' }}><TextAreaField label="📝 분석 & 방안" value={draft.analysis} onChange={set('analysis')} placeholder="분석 내용을 입력하세요." /></div>
+          <div style={{ flex: '1 1 240px' }}><TextAreaField label="📝 분석 & 추후 방안" value={draft.analysis} onChange={set('analysis')} placeholder="결과 분석을 입력하세요." /></div>
         </div>
         <div className="mb-4">
           <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 6 }}>제품군</div>
@@ -266,78 +257,40 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, on
           <button onClick={() => onDelete(item.id)} style={{ padding: 7, borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.accent }}><Trash2 size={14} /></button>
         </div>
       </div>
-      <div style={{ marginTop: 8 }}>
-        <button onClick={() => setInsightOpen((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 11, fontWeight: 700, color: C.sub, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}>
-          {insightOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 인사이트 {insightOpen ? '접기' : '펼치기'}
-          {(item.hypothesis || item.analysis) && <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, display: 'inline-block', flexShrink: 0 }} />}
-        </button>
-        {insightOpen && (
-          <div style={{ marginTop: 6, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-            <div className="flex items-start gap-1.5" style={{ fontSize: 12, color: C.ink, lineHeight: 1.5, marginBottom: 6 }}>
-              <Swatch color={C.accent} size={6} />
-              <span><b style={{ color: C.accent }}>[가설]</b> {item.hypothesis ? <span style={{ whiteSpace: 'pre-wrap' }}>{item.hypothesis}</span> : <span style={{ color: C.sub }}>아직 가설이 없습니다.</span>}</span>
-            </div>
-            <div className="flex items-start gap-1.5" style={{ fontSize: 12, color: C.ink, lineHeight: 1.5 }}>
-              <Swatch color={C.mint} size={6} />
-              <span><b style={{ color: C.mint }}>[분석 & 방안]</b> {item.analysis ? <span style={{ whiteSpace: 'pre-wrap' }}>{item.analysis}</span> : <span style={{ color: C.sub }}>아직 분석이 없습니다.</span>}</span>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
-// ============================================================
-// 1. 통합 요약 탭 컴포넌트 (SummaryView)
-// ============================================================
 function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents }) {
-  const [tab, setTab] = useState('KR');
-  const accent = tab === 'KR' ? '#E8546B' : '#3E6FE0';
-  const weekKeys = weekMeta.map((w) => w.key);
-  const prevIdx = weekKeys.indexOf(selectedWeek) - 1;
-  const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null;
+  const [tab, setTab] = useState('KR'); const accent = tab === 'KR' ? '#E8546B' : '#3E6FE0';
+  const weekKeys = weekMeta.map((w) => w.key); const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null;
   const val = (country, week, k) => Number(accountMetrics[country]?.[week]?.[k] || 0);
   const wowDelta = (country, k) => { const cur = val(country, selectedWeek, k); if (!prevWeek) return null; const prev = val(country, prevWeek, k); return prev ? ((cur - prev) / prev) * 100 : null; };
   const labelsA = metricLabels(ACCOUNT_METRICS);
-  const [showMonthlyTable, setShowMonthlyTable] = useState(false);
 
   const latestMonthStr = weekMeta[weekMeta.length - 1]?.month || '2026-06';
-  const currentYear = latestMonthStr.split('-')[0];
-  const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10);
+  const currentYear = latestMonthStr.split('-')[0]; const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10);
   const monthList = Array.from({length: latestMonthNum}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
 
   const monthlyData = monthList.map(m => {
-      const wks = weekMeta.filter(w => w.month === m).map(w => w.key);
-      const data = { month: m, sales: 0, inflow: 0, reach: 0, engagement: 0 };
-      wks.forEach(wk => { data.sales += val(tab, wk, 'sales') || 0; data.inflow += val(tab, wk, 'inflow') || 0; data.reach += val(tab, wk, 'reach') || 0; data.engagement += val(tab, wk, 'engagement') || 0; });
-      return data;
+      const wks = weekMeta.filter(w => w.month === m).map(w => w.key); const data = { month: m, sales: 0, inflow: 0, reach: 0, engagement: 0 };
+      wks.forEach(wk => { data.sales += val(tab, wk, 'sales') || 0; data.inflow += val(tab, wk, 'inflow') || 0; data.reach += val(tab, wk, 'reach') || 0; data.engagement += val(tab, wk, 'engagement') || 0; }); return data;
   });
-
   const mBase = { sales: monthlyData.find(d => d.sales > 0)?.sales || 1, inflow: monthlyData.find(d => d.inflow > 0)?.inflow || 1, reach: monthlyData.find(d => d.reach > 0)?.reach || 1, engagement: monthlyData.find(d => d.engagement > 0)?.engagement || 1 };
   const monthlyTrendNorm = monthlyData.map(d => ({ month: fmtMonth(d.month), sales: Math.round((d.sales / mBase.sales) * 100), inflow: Math.round((d.inflow / mBase.inflow) * 100), reach: Math.round((d.reach / mBase.reach) * 100), engagement: Math.round((d.engagement / mBase.engagement) * 100), _raw_sales: d.sales, _raw_inflow: d.inflow, _raw_reach: d.reach, _raw_engagement: d.engagement }));
 
-  const BASELINE_WEEKS = 8;
-  const baselineWeeksList = lastNWeeksKeys(weekMeta, selectedWeek, BASELINE_WEEKS);
-  const rangeItems = baselineWeeksList.flatMap((w) => allContents[tab]?.[w] || []);
+  const BASELINE_WEEKS = 8; const baselineWeeksList = lastNWeeksKeys(weekMeta, selectedWeek, BASELINE_WEEKS); const rangeItems = baselineWeeksList.flatMap((w) => allContents[tab]?.[w] || []);
   const avgMetrics = {};
   ['reach', 'views', 'engagement', 'likes', 'comments', 'saves', 'shares'].forEach(k => {
-     const vals = rangeItems.map(i => Number(i[k] || 0)).sort((a,b)=>b-a);
-     const cutoff = Math.ceil(vals.length * 0.05); const valid = vals.slice(cutoff); avgMetrics[k] = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
+     const vals = rangeItems.map(i => Number(i[k] || 0)).sort((a,b)=>b-a); const cutoff = Math.ceil(vals.length * 0.05); const valid = vals.slice(cutoff); avgMetrics[k] = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
   });
   const combinedScore = (i) => Number(i.reach || 0) + Number(i.engagement || 0);
   const combinedVals = rangeItems.map(i => combinedScore(i)).sort((a,b)=>b-a);
-  const combinedCutoff = Math.ceil(combinedVals.length * 0.05);
-  const combinedValid = combinedVals.slice(combinedCutoff);
-  avgMetrics['reachAndEngagement'] = combinedValid.length ? combinedValid.reduce((a,b)=>a+b,0)/combinedValid.length : 0;
+  const combinedCutoff = Math.ceil(combinedVals.length * 0.05); const combinedValid = combinedVals.slice(combinedCutoff); avgMetrics['reachAndEngagement'] = combinedValid.length ? combinedValid.reduce((a,b)=>a+b,0)/combinedValid.length : 0;
 
-  const weekItems = allContents[tab]?.[selectedWeek] || [];
-  const top3Content = [...weekItems].sort((a, b) => combinedScore(b) - combinedScore(a)).slice(0, 3);
-  const reelsBaseAvg = avgMetrics.reach || 0;
-  const calcHitRate = (w) => { const items = allContents[tab]?.[w] || []; const reels = items.filter(isReel); const hits = reels.filter((r) => Number(r.reach || 0) >= reelsBaseAvg).length; return reels.length ? Math.round((hits / reels.length) * 100) : null; };
-  const hitRateNow = calcHitRate(selectedWeek);
-  const hitRatePrev = prevWeek ? calcHitRate(prevWeek) : null;
-  const hitRateDelta = hitRateNow != null && hitRatePrev != null ? hitRateNow - hitRatePrev : null;
+  const weekItems = allContents[tab]?.[selectedWeek] || []; const top3Content = [...weekItems].sort((a, b) => combinedScore(b) - combinedScore(a)).slice(0, 3);
+  const reelsBaseAvg = avgMetrics.reach || 0; const calcHitRate = (w) => { const items = allContents[tab]?.[w] || []; const reels = items.filter(isReel); const hits = reels.filter((r) => Number(r.reach || 0) >= reelsBaseAvg).length; return reels.length ? Math.round((hits / reels.length) * 100) : null; };
+  const hitRateNow = calcHitRate(selectedWeek); const hitRatePrev = prevWeek ? calcHitRate(prevWeek) : null; const hitRateDelta = hitRateNow != null && hitRatePrev != null ? hitRateNow - hitRatePrev : null;
 
   return (
     <div>
@@ -371,14 +324,9 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
         <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={hitRateNow ?? 0} delta={hitRateDelta} accentColor={accent} />
       </div>
 
-      {/* 📊 하단 연간 누적 차트 */}
       <div className="mb-8 mt-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
-          <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>[참고] 월간 매출 · 유입 · 도달 · 참여 추이</h3>
-            <div style={{ fontSize: 12, color: C.sub }}>{currentYear}년 전체 월별 누적 현황 · 첫 달 대비 지수(=100) 비교</div>
-          </div>
-          <button onClick={() => setShowMonthlyTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyTable ? C.ink : '#fff', color: showMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
+          <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>[참고] 월간 매출 · 유입 · 도달 · 참여 추이</h3></div>
         </div>
         <div style={{ width: '100%', height: 200 }}>
           <ResponsiveContainer>
@@ -395,38 +343,20 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
           </ResponsiveContainer>
         </div>
       </div>
-
-      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <SectionLabel color={C.mint} sub="이번 주 발행 리스트 중 도달+참여 기반 최고 성과">🔥 고성과 TOP 3 요약 콘텐츠</SectionLabel>
-        <div className="flex flex-col gap-2.5 mt-3">
-          {top3Content.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>표시할 콘텐츠가 없습니다.</div>}
-          {top3Content.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={()=>{}} onDelete={()=>{}} avgMetrics={avgMetrics} />)}
-        </div>
-      </div>
     </div>
   );
 }
 
-// ============================================================
-// 2. 국가별 대시보드 탭 컴포넌트 (CountryView)
-// ============================================================
+// ✅ [완벽 복구] 태그 문법 오류를 도끼로 찍듯 완벽히 소거하여 리팩토링한 CountryView 컴포넌트
 function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, countryInsights, onInsightChange, allContents, onAllContentsChange, onSyncContent }) {
   const country = COUNTRIES.find((c) => c.key === countryKey); const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const labelsA = metricLabels(ACCOUNT_METRICS);
-  const [showPrimaryTable, setShowPrimaryTable] = useState(false); const [showMonthlyTable, setShowMonthlyTable] = useState(false); const [showAllList, setShowAllList] = useState(false);
+  const [showPrimaryTable, setShowPrimaryTable] = useState(false); const [showAllList, setShowAllList] = useState(false);
   const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
 
   const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) }));
   const PRIMARY_KEYS = ['sales', 'inflow', 'reach', 'engagement']; const primaryBase = Object.fromEntries(PRIMARY_KEYS.map((k) => [k, trendData.find((d) => d[k] > 0)?.[k] || 1]));
   const primaryTrendNorm = trendData.map((d) => { const entry = { week: d.week }; PRIMARY_KEYS.forEach((k) => { entry[k] = Math.round((d[k] / primaryBase[k]) * 100); entry[`_raw_${k}`] = d[k]; }); return entry; });
-
-  const latestMonthStr = weekMeta[weekMeta.length - 1]?.month || '2026-06'; const currentYear = latestMonthStr.split('-')[0]; const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10); const monthList = Array.from({length: latestMonthNum}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
-  const monthlyData = monthList.map(m => {
-      const wks = weekMeta.filter(w => w.month === m).map(w => w.key); const data = { month: m, sales: 0, inflow: 0, reach: 0, engagement: 0 };
-      wks.forEach(wk => { data.sales += totals(wk).sales || 0; data.inflow += totals(wk).inflow || 0; data.reach += totals(wk).reach || 0; data.engagement += totals(wk).engagement || 0; }); return data;
-  });
-  const mBase = { sales: monthlyData.find(d => d.sales > 0)?.sales || 1, inflow: monthlyData.find(d => d.inflow > 0)?.inflow || 1, reach: monthlyData.find(d => d.reach > 0)?.reach || 1, engagement: monthlyData.find(d => d.engagement > 0)?.engagement || 1 };
-  const monthlyTrendNorm = monthlyData.map(d => ({ month: fmtMonth(d.month), sales: Math.round((d.sales / mBase.sales) * 100), inflow: Math.round((d.inflow / mBase.inflow) * 100), reach: Math.round((d.reach / mBase.reach) * 100), engagement: Math.round((d.engagement / mBase.engagement) * 100), _raw_sales: d.sales, _raw_inflow: d.inflow, _raw_reach: d.reach, _raw_engagement: d.engagement }));
 
   const BASELINE_WEEKS = 8; const rangeWeeks = lastNWeeksKeys(weekMeta, selectedWeek, BASELINE_WEEKS); const rangeItems = rangeWeeks.flatMap((w) => allContents[countryKey]?.[w] || []);
   const avgMetrics = {};
@@ -461,11 +391,9 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
         <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
       </div>
 
-      {/* ⭐️ 주차별 성과 추이 차트 (최근 7주 메인 상단 배치 완료) */}
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 성과 추이 지수 비교 (최근 7주)</h3></div>
-          <button onClick={() => setShowPrimaryTable((v) => !v)} className="flex items-center gap-1.5" style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showPrimaryTable ? C.ink : '#fff', color: showPrimaryTable ? '#fff' : C.sub, cursor: 'pointer' }}>{showPrimaryTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표</button>
         </div>
         <div style={{ width: '100%', height: 240 }}>
           <ResponsiveContainer>
@@ -499,7 +427,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
       <div className="mb-6" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
         <div className="flex items-center gap-2 mb-2"><Pencil color={C.accent} size={16} /><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주간 전체 인사이트 · {selectedWeek}</h3><span style={{ fontSize: 11, color: C.sub, marginLeft: 'auto' }}>시트 실시간 자동 저장</span></div>
-        <TextAreaField value={countryInsights[countryKey]?.[selectedWeek] || ''} onChange={(v) => onInsightChange(countryKey, selectedWeek, v)} placeholder="인사이트를 기입하세요." rows={4} />
+        <TextAreaField value={countryInsights[countryKey]?.[selectedWeek] || ''} onChange={(v) => onInsightChange(countryKey, selectedWeek, v)} placeholder="이번 주 분석 인사이트를 입력하세요." rows={4} />
       </div>
 
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -533,12 +461,8 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   );
 }
 
-// ============================================================
-// 3. 피드 콘텐츠 대시보드 탭 컴포넌트 (FeedView)
-// ============================================================
 function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountMetrics, onFeedContentsChange, onSyncContent }) {
   const [selectedCountry, setSelectedCountry] = useState('KR'); const countryContents = feedContents[selectedCountry] || {}; const weekContents = countryContents[selectedWeek] || [];
-  const [showWeeklyChartTable, setShowWeeklyChartTable] = useState(false);
 
   const getFeedTotals = useCallback((weekKey) => {
     const list = feedContents[selectedCountry]?.[weekKey] || [];
@@ -600,7 +524,6 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountM
         {['likes', 'comments', 'saves', 'shares'].map(k => <HeroCard delta={calcFeedDelta(k)} key={k} metricsMap={CONTENT_METRICS} mkey={k} value={currentTotals[k]} />)}
       </div>
 
-      {/* ⭐️ 피드 주간 핵심지표 추이 비교 (최근 7주 상단 메인 안착) */}
       <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>피드 주간 핵심지표 추이 비교 (최근 7주)</h3></div>
@@ -623,19 +546,6 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountM
         </div>
       </div>
 
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW, marginBottom: 24 }}>
-        <div className="flex items-center gap-2 mb-4"><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 피드 발생 팔로우 · 계정 전체 신규 팔로우 증감률</h3><InfoTip text="피드 콘텐츠만의 합계가 아닌 계정 전체 신규 팔로워 증감률 현황입니다." /></div>
-        <div style={{ width: '100%', height: 200 }}>
-          <ResponsiveContainer>
-            <ComposedChart data={accountFollowerCompare} margin={{ top: 15, right: 30, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} /><XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} /><YAxis yAxisId="left" tick={{ fontSize: 11, fill: C.sub }} /><YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: C.sub }} unit="%" /><Tooltip content={<ChartTooltip labels={{ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률' }} />} />
-              <Bar yAxisId="left" dataKey="feedFollows" fill={FEED_METRICS.profileActivity.color} radius={[4, 4, 0, 0]} />
-              <Line yAxisId="right" type="monotone" dataKey="accountGrowthRate" stroke={ACCOUNT_METRICS.newFollowers.color} strokeWidth={2.5} dot={{ r: 4 }} connectNulls />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       <button onClick={addContent} className="flex items-center gap-1 mb-4" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff' }}><Plus size={14} /> 피드 콘텐츠 추가</button>
       <div className="flex flex-col gap-2.5 mb-8">
         {weekContents.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '24px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 피드 콘텐츠가 없습니다.</div>}
@@ -645,9 +555,6 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountM
   );
 }
 
-// ============================================================
-// 대시보드 마스터 마스터 앱 컴포넌트
-// ============================================================
 export default function App() {
   const [view, setView] = useState('summary'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents);
