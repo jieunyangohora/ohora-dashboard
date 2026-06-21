@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   LineChart, Line, BarChart, Bar, ComposedChart, AreaChart, Area, LabelList, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, Legend
@@ -9,26 +9,24 @@ import {
   TrendingUp, TrendingDown, Minus, Loader2, ClipboardPaste, ArrowDownToLine,
   NotebookPen, BookOpen, Activity, PlayCircle, MousePointerClick, LayoutDashboard,
   Globe, Rss, Rocket, Lightbulb, Sparkles, Link, CheckCircle, AlertCircle, RefreshCw,
-  Settings, Target, Leaf, FileStack,
+  Settings, Target, Leaf, FileStack, Flame
 } from 'lucide-react';
 
 // ============================================================
-// 디자인 토큰 — 대비·위계 강화 버전
-//  · 텍스트를 진하게(ink/sub), 보더를 살짝 또렷하게, 카드에 옅은 그림자
-//  · 색은 작은 스와치/아이콘에만, 큰 면적은 비워 숫자가 주인공이 되게
+// 디자인 토큰
 // ============================================================
 const C = {
-  bg: '#F4EEE8',          // 베이지 배경 (살짝 따뜻하게)
+  bg: '#F4EEE8',
   card: '#FFFFFF',
-  panel: '#FBF7F3',       // 섹션 묶음용 옅은 패널
-  ink: '#241F1B',         // 본문/숫자 — 진하게
-  sub: '#6B6259',         // 보조 텍스트 — 기존보다 진하게(가독성↑)
-  subLite: '#9A928A',     // 아주 약한 캡션용
+  panel: '#FBF7F3',
+  ink: '#241F1B',
+  sub: '#6B6259',
+  subLite: '#9A928A',
   border: '#E7DCD3',
   borderStrong: '#D9CABB',
   accent: '#E8546B',
   accentSoft: '#FCE9EC',
-  mint: '#2E9E89',        // 채도 ↑
+  mint: '#2E9E89',
   mintSoft: '#E4F2EE',
 };
 const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -62,13 +60,12 @@ const ACCOUNT_METRICS = {
   websiteClicks: { label: '웹사이트 클릭', icon: MousePointerClick, color: '#E08A2B' },
   sales: { label: '매출', icon: TrendingUp, color: '#E8546B' },
   inflow: { label: '유입', icon: ArrowDownToLine, color: '#2E9E89' },
-  achieveRate: { label: '달성률', icon: Check, color: '#6C5CE7' },
+  salesAchieveRate: { label: '매출 달성률', icon: Check, color: '#6C5CE7' },
+  inflowAchieveRate: { label: '유입 달성률', icon: Check, color: '#6C5CE7' },
   pace: { label: 'Pace', icon: Activity, color: '#E08A2B' },
 };
-// 입력 테이블에 노출되는 계정 지표 키 (조회 가능한 전체 지표)
 const ACCOUNT_KEYS = ['reach', 'organicReach', 'views', 'organicViews', 'engagement', 'newFollowers', 'followers', 'contentsCount', 'profileVisits', 'websiteClicks'];
-const BIZ_KEYS = ['sales', 'inflow', 'achieveRate', 'pace'];
-const COUNTRY_BIZ_KEYS = ['sales', 'inflow'];
+const BIZ_KEYS = ['sales', 'inflow', 'salesAchieveRate', 'inflowAchieveRate', 'pace'];
 const ALL_ACCOUNT_KEYS = [...BIZ_KEYS, ...ACCOUNT_KEYS];
 
 const CONTENT_METRICS = {
@@ -96,31 +93,15 @@ const FEED_METRICS = {
 const FEED_CORE = ['saves', 'shares', 'profileActivity'];
 const FEED_SUB = ['reach', 'likes', 'comments', 'regrams', 'follows'];
 
-// 도달/조회수 ↔ 오가닉 짝
-const ORGANIC_PAIR = { reach: 'organicReach', views: 'organicViews' };
-
 // ============================================================
-// 주차 메타
-// ============================================================
-const initialWeekMeta = [
-  { key: 'W18', month: '2026-05' },
-  { key: 'W19', month: '2026-05' },
-  { key: 'W20', month: '2026-05' },
-  { key: 'W21', month: '2026-05' },
-  { key: 'W22', month: '2026-05' },
-  { key: 'W23', month: '2026-06' },
-  { key: 'W24', month: '2026-06' },
-];
-
-// ============================================================
-// 헬퍼
+// 헬퍼 함수
 // ============================================================
 const fmt = (n) => Number(n || 0).toLocaleString('ko-KR');
 const fmtK = (n) => { const v = Number(n || 0); if (v >= 1000000) return `${(v/1000000).toFixed(1)}M`; if (v >= 10000) return `${(v/1000).toFixed(0)}K`; if (v >= 1000) return `${(v/1000).toFixed(1)}K`; return String(v); };
 const pct = (n) => `${n > 0 ? '+' : ''}${n.toFixed(1)}%`;
 const fmtMetric = (mkey, value) => {
   if (mkey === 'sales') return `₩${fmt(value)}`;
-  if (mkey === 'achieveRate' || mkey === 'pace' || mkey === 'hitRate') return `${Number(value || 0).toFixed(0)}%`;
+  if (mkey.includes('AchieveRate') || mkey === 'pace' || mkey === 'hitRate') return `${Number(value || 0).toFixed(0)}%`;
   return fmt(value);
 };
 const numFrom = (v) => {
@@ -148,14 +129,6 @@ const blankItem = (id, title, metricKeys) => {
 const FEED_KEYS = [...FEED_CORE, ...FEED_SUB];
 const CONTENT_KEYS = [...CONTENT_CORE, ...CONTENT_SUB];
 
-const lastThreeMonthsWeekKeys = (weekMeta, selectedWeek) => {
-  const months = [];
-  weekMeta.forEach((w) => { if (!months.includes(w.month)) months.push(w.month); });
-  const curMonth = weekMeta.find((w) => w.key === selectedWeek)?.month;
-  const idx = months.indexOf(curMonth);
-  const last3 = idx >= 0 ? months.slice(Math.max(0, idx - 2), idx + 1) : months.slice(-3);
-  return weekMeta.filter((w) => last3.includes(w.month)).map((w) => w.key);
-};
 const lastNWeeksKeys = (weekMeta, selectedWeek, n) => {
   const keys = weekMeta.map((w) => w.key);
   const idx = keys.indexOf(selectedWeek);
@@ -163,20 +136,19 @@ const lastNWeeksKeys = (weekMeta, selectedWeek, n) => {
   return keys.slice(Math.max(0, idx - n + 1), idx + 1);
 };
 
-const isRetroGrowth = (item, weekKeys, selectedWeek) => {
-  const diff = weekKeys.indexOf(selectedWeek) - weekKeys.indexOf(item.week);
-  if (diff < 2) return null;
-  const initial = Number(item.initialScore || 0);
-  const final = Number(item.finalScore || 0);
-  if (initial <= 0) return null;
-  const growth = ((final - initial) / initial) * 100;
-  if (growth < 100 || final < 5000) return null;
-  return growth;
-};
+// ============================================================
+// 더미 초기 데이터 (원본 데이터 복구!)
+// ============================================================
+const initialWeekMeta = [
+  { key: 'W18', month: '2026-05' },
+  { key: 'W19', month: '2026-05' },
+  { key: 'W20', month: '2026-05' },
+  { key: 'W21', month: '2026-05' },
+  { key: 'W22', month: '2026-05' },
+  { key: 'W23', month: '2026-06' },
+  { key: 'W24', month: '2026-06' },
+];
 
-// ============================================================
-// 초기 데이터
-// ============================================================
 const initialFeedContents = {
   KR: {
     W20: [
@@ -259,7 +231,7 @@ const initialAllContents = {
       ac(27, '나만 알고 싶었던 네일관리 꿀템 TOP3', 'https://www.instagram.com/reel/DYy9bosQhKx/', 'W22', 19004, 225, 21, 274, 128),
       ac(28, '형광등 네일 (포도 컬러 믹스)', 'https://www.instagram.com/reel/DY1amFGgtHU/', 'W22', 16820, 211, 7, 80, 48),
       ac(29, '강화제 컬러 믹스 (허니듀+샴페인)', 'https://www.instagram.com/reel/DY4JW2nNqhJ/', 'W22', 98453, 3982, 51, 1398, 451),
-      ac(30, '차분한 일상 속, 특별한 기분 전환', 'https://www.instagram.com/p/DY6PlUXGYWq/', 'W22', 1892, 52, 0, 9, 6),
+      ac(30, '차분 일상 속, 특별한 기분 전환', 'https://www.instagram.com/p/DY6PlUXGYWq/', 'W22', 1892, 52, 0, 9, 6),
       ac(31, '아이돌st 여름 네일 따라하기 (블루베리)', 'https://www.instagram.com/reel/DY6oowRxSsn/', 'W22', 68973, 970, 52, 275, 245),
       ac(32, 'BEST 리얼젤팁 모음', 'https://www.instagram.com/p/DY8mr7NGdFA/', 'W22', 3164, 66, 0, 13, 15),
       ac(33, '골드 컨페티 발색 공개', 'https://www.instagram.com/reel/DY8v2k3BMEs/', 'W22', 179031, 3875, 31, 756, 268, 80000, 179031),
@@ -328,25 +300,24 @@ const initialAllContents = {
   },
 };
 
-// 계정 지표 시드값 — import KR/US SNS (daily) 탭의 실제 주간 집계(W20~W24) 기준.
 const initialAccountMetrics = {
   KR: {
-    W18: { sales: 298500000, inflow: 208400, achieveRate: 158, pace: 163, reach: 3778846, organicReach: 1803915, views: 5687723, organicViews: 2647889, engagement: 96829, newFollowers: 1561, followers: 75527, contentsCount: 7, profileVisits: 27600, websiteClicks: 4980 },
-    W19: { sales: 309200000, inflow: 213900, achieveRate: 163, pace: 168, reach: 3709820, organicReach: 841396, views: 4507219, organicViews: 1313082, engagement: 61179, newFollowers: 684, followers: 76211, contentsCount: 7, profileVisits: 28200, websiteClicks: 5150 },
-    W20: { sales: 321464120, inflow: 222790, achieveRate: 172, pace: 178, reach: 3503148, organicReach: 562020, views: 5256630, organicViews: 924427, engagement: 66023, newFollowers: 856, followers: 77067, contentsCount: 7, profileVisits: 29171, websiteClicks: 5560 },
-    W21: { sales: 413334711, inflow: 302255, achieveRate: 221, pace: 229, reach: 3576247, organicReach: 1177458, views: 5721873, organicViews: 1878860, engagement: 92531, newFollowers: 1279, followers: 78346, contentsCount: 7, profileVisits: 30641, websiteClicks: 9454 },
-    W22: { sales: 335729387, inflow: 281689, achieveRate: 180, pace: 186, reach: 4974618, organicReach: 1975518, views: 7213421, organicViews: 3100663, engagement: 167156, newFollowers: 1461, followers: 79807, contentsCount: 7, profileVisits: 24271, websiteClicks: 4204 },
-    W23: { sales: 475051684, inflow: 260598, achieveRate: 154, pace: 159, reach: 5723719, organicReach: 2327614, views: 8656838, organicViews: 3562506, engagement: 243754, newFollowers: 2145, followers: 81952, contentsCount: 7, profileVisits: 29161, websiteClicks: 4797 },
-    W24: { sales: 365145940, inflow: 216092, achieveRate: 111, pace: 115, reach: 4793196, organicReach: 1298924, views: 7802158, organicViews: 2059358, engagement: 125086, newFollowers: 1264, followers: 83216, contentsCount: 7, profileVisits: 17911, websiteClicks: 3922 },
+    W18: { sales: 298500000, inflow: 208400, salesAchieveRate: 158, inflowAchieveRate: 158, pace: 163, reach: 3778846, organicReach: 1803915, views: 5687723, organicViews: 2647889, engagement: 96829, newFollowers: 1561, followers: 75527, contentsCount: 7, profileVisits: 27600, websiteClicks: 4980 },
+    W19: { sales: 309200000, inflow: 213900, salesAchieveRate: 163, inflowAchieveRate: 163, pace: 168, reach: 3709820, organicReach: 841396, views: 4507219, organicViews: 1313082, engagement: 61179, newFollowers: 684, followers: 76211, contentsCount: 7, profileVisits: 28200, websiteClicks: 5150 },
+    W20: { sales: 321464120, inflow: 222790, salesAchieveRate: 172, inflowAchieveRate: 172, pace: 178, reach: 3503148, organicReach: 562020, views: 5256630, organicViews: 924427, engagement: 66023, newFollowers: 856, followers: 77067, contentsCount: 7, profileVisits: 29171, websiteClicks: 5560 },
+    W21: { sales: 413334711, inflow: 302255, salesAchieveRate: 221, inflowAchieveRate: 221, pace: 229, reach: 3576247, organicReach: 1177458, views: 5721873, organicViews: 1878860, engagement: 92531, newFollowers: 1279, followers: 78346, contentsCount: 7, profileVisits: 30641, websiteClicks: 9454 },
+    W22: { sales: 335729387, inflow: 281689, salesAchieveRate: 180, inflowAchieveRate: 180, pace: 186, reach: 4974618, organicReach: 1975518, views: 7213421, organicViews: 3100663, engagement: 167156, newFollowers: 1461, followers: 79807, contentsCount: 7, profileVisits: 24271, websiteClicks: 4204 },
+    W23: { sales: 475051684, inflow: 260598, salesAchieveRate: 154, inflowAchieveRate: 154, pace: 159, reach: 5723719, organicReach: 2327614, views: 8656838, organicViews: 3562506, engagement: 243754, newFollowers: 2145, followers: 81952, contentsCount: 7, profileVisits: 29161, websiteClicks: 4797 },
+    W24: { sales: 365145940, inflow: 216092, salesAchieveRate: 111, inflowAchieveRate: 111, pace: 115, reach: 4793196, organicReach: 1298924, views: 7802158, organicViews: 2059358, engagement: 125086, newFollowers: 1264, followers: 83216, contentsCount: 7, profileVisits: 17911, websiteClicks: 3922 },
   },
   US: {
-    W18: { sales: 398200000, inflow: 278600, achieveRate: 88, pace: 91, reach: 1529869, organicReach: 1165008, views: 3848739, organicViews: 3223718, engagement: 175527, newFollowers: 1253, followers: 104538, contentsCount: 14, profileVisits: 14400, websiteClicks: 1950 },
-    W19: { sales: 405700000, inflow: 283100, achieveRate: 91, pace: 94, reach: 1974903, organicReach: 1494051, views: 3726726, organicViews: 2966513, engagement: 104102, newFollowers: 1181, followers: 105719, contentsCount: 11, profileVisits: 14750, websiteClicks: 2020 },
-    W20: { sales: 426713061, inflow: 297174, achieveRate: 95, pace: 98, reach: 5129669, organicReach: 4714251, views: 8301810, organicViews: 7625389, engagement: 129711, newFollowers: 1284, followers: 107003, contentsCount: 27, profileVisits: 15807, websiteClicks: 2104 },
-    W21: { sales: 452969174, inflow: 292823, achieveRate: 101, pace: 104, reach: 4682212, organicReach: 4233591, views: 7658436, organicViews: 6970475, engagement: 178234, newFollowers: 1439, followers: 108442, contentsCount: 18, profileVisits: 12332, websiteClicks: 1786 },
-    W22: { sales: 430853662, inflow: 277885, achieveRate: 96, pace: 99, reach: 7817922, organicReach: 7439998, views: 11637295, organicViews: 11119701, engagement: 317072, newFollowers: 2137, followers: 110579, contentsCount: 25, profileVisits: 15324, websiteClicks: 2799 },
-    W23: { sales: 442068143, inflow: 291731, achieveRate: 67, pace: 69, reach: 3210728, organicReach: 2936025, views: 5248923, organicViews: 4762435, engagement: 128900, newFollowers: 968, followers: 111547, contentsCount: 15, profileVisits: 8635, websiteClicks: 1326 },
-    W24: { sales: 339149357, inflow: 259075, achieveRate: 49, pace: 50, reach: 4425236, organicReach: 4141903, views: 7220614, organicViews: 6746287, engagement: 206656, newFollowers: 1341, followers: 112888, contentsCount: 14, profileVisits: 8309, websiteClicks: 924 },
+    W18: { sales: 398200000, inflow: 278600, salesAchieveRate: 88, inflowAchieveRate: 88, pace: 91, reach: 1529869, organicReach: 1165008, views: 3848739, organicViews: 3223718, engagement: 175527, newFollowers: 1253, followers: 104538, contentsCount: 14, profileVisits: 14400, websiteClicks: 1950 },
+    W19: { sales: 405700000, inflow: 283100, salesAchieveRate: 91, inflowAchieveRate: 91, pace: 94, reach: 1974903, organicReach: 1494051, views: 3726726, organicViews: 2966513, engagement: 104102, newFollowers: 1181, followers: 105719, contentsCount: 11, profileVisits: 14750, websiteClicks: 2020 },
+    W20: { sales: 426713061, inflow: 297174, salesAchieveRate: 95, inflowAchieveRate: 95, pace: 98, reach: 5129669, organicReach: 4714251, views: 8301810, organicViews: 7625389, engagement: 129711, newFollowers: 1284, followers: 107003, contentsCount: 27, profileVisits: 15807, websiteClicks: 2104 },
+    W21: { sales: 452969174, inflow: 292823, salesAchieveRate: 101, inflowAchieveRate: 101, pace: 104, reach: 4682212, organicReach: 4233591, views: 7658436, organicViews: 6970475, engagement: 178234, newFollowers: 1439, followers: 108442, contentsCount: 18, profileVisits: 12332, websiteClicks: 1786 },
+    W22: { sales: 430853662, inflow: 277885, salesAchieveRate: 96, inflowAchieveRate: 96, pace: 99, reach: 7817922, organicReach: 7439998, views: 11637295, organicViews: 11119701, engagement: 317072, newFollowers: 2137, followers: 110579, contentsCount: 25, profileVisits: 15324, websiteClicks: 2799 },
+    W23: { sales: 442068143, inflow: 291731, salesAchieveRate: 67, inflowAchieveRate: 67, pace: 69, reach: 3210728, organicReach: 2936025, views: 5248923, organicViews: 4762435, engagement: 128900, newFollowers: 968, followers: 111547, contentsCount: 15, profileVisits: 8635, websiteClicks: 1326 },
+    W24: { sales: 339149357, inflow: 259075, salesAchieveRate: 49, inflowAchieveRate: 49, pace: 50, reach: 4425236, organicReach: 4141903, views: 7220614, organicViews: 6746287, engagement: 206656, newFollowers: 1341, followers: 112888, contentsCount: 14, profileVisits: 8309, websiteClicks: 924 },
   },
 };
 function zeroAccount() {
@@ -354,25 +325,10 @@ function zeroAccount() {
   ALL_ACCOUNT_KEYS.forEach((k) => { o[k] = 0; });
   return o;
 }
+const initialCountryInsights = { KR: {}, US: {} };
 
-const initialCountryInsights = {
-  KR: { W20: '', W21: '', W22: '', W23: '', W24: '' },
-  US: { W20: '', W21: '', W22: '', W23: '', W24: '' },
-};
-
-const initialActiveProjects = { KR: '', US: '', feed: '' };
-
-// ============================================================
-// 저장소 키
-// ============================================================
-const STORAGE_WEEKS_KEY = 'dash2-weeks-v2';
-const STORAGE_FEED_KEY = 'dash2-feed-contents-v2';
-const STORAGE_ALL_KEY = 'dash2-all-contents-v2';
-const STORAGE_ACCOUNT_KEY = 'dash2-account-metrics-v3';
-const STORAGE_INSIGHTS_KEY = 'dash2-country-insights-v2';
-const STORAGE_PROJECTS_KEY = 'dash2-active-projects-v2';
-const STORAGE_PRODUCT_KEY = 'dash2-product-sales-v1';
 const STORAGE_GAS_URL_KEY = 'dash2-gas-url-v1';
+const STORAGE_INSIGHTS_KEY = 'dash2-country-insights-v2';
 
 const PRODUCT_CATS = [
   { key: 'gelPressOn', label: '젤프레스온', color: '#E8546B' },
@@ -380,37 +336,21 @@ const PRODUCT_CATS = [
   { key: 'gelStrip',   label: '젤스트립',  color: '#2E9E89' },
   { key: 'otherCare',  label: '기타케어류', color: '#C9A24B' },
 ];
-const zeroProduct = () => Object.fromEntries(PRODUCT_CATS.map((p) => [p.key, 0]));
 const initialProductSales = {
-  KR: { W20: zeroProduct(), W21: zeroProduct(), W22: zeroProduct(), W23: zeroProduct(), W24: zeroProduct() },
-  US: { W20: zeroProduct(), W21: zeroProduct(), W22: zeroProduct(), W23: zeroProduct(), W24: zeroProduct() },
-};
-
-const FEED_IMPORT_FIELDS = [
-  { key: 'title', label: '제목 (Caption)' }, { key: 'link', label: '링크 (Link)' },
-  { key: 'reach', label: '도달 (Reach)' }, { key: 'follows', label: '팔로우 (Follows)' }, { key: 'likes', label: '좋아요 (Likes)' },
-  { key: 'saves', label: '저장수 (Saves)' }, { key: 'shares', label: '공유수 (Shares)' }, { key: 'comments', label: '댓글 (Comments)' },
-];
-const FEED_GUESS = {
-  title: ['caption'], link: ['link'],
-  reach: ['reach'], follows: ['follows'], likes: ['likes'], saves: ['saves'], shares: ['shares'], comments: ['comments'],
-};
-
-const ALL_IMPORT_FIELDS = [
-  { key: 'title', label: '제목 (Caption)' }, { key: 'link', label: '링크 (Link)' },
-  { key: 'reach', label: '도달 (Reach)' }, { key: 'views', label: '조회수 (Views)' }, { key: 'engagement', label: '참여 (Engagement)' },
-  { key: 'likes', label: '좋아요 (Likes)' }, { key: 'comments', label: '댓글 (Comments)' }, { key: 'saves', label: '저장 (Saves)' }, { key: 'shares', label: '공유 (Shares)' },
-  { key: 'hypothesis', label: '가설' }, { key: 'analysis', label: '분석 & 추후 방안' }, { key: 'salesImpact', label: '매출전환효과' },
-  { key: 'initialScore', label: '초기 성과' }, { key: 'w1Score', label: '1주차 성과' }, { key: 'w2Score', label: '2주차 성과' },
-  { key: 'w3Score', label: '3주차 성과' }, { key: 'w4Score', label: '4주차 성과' }, { key: 'finalScore', label: '최종 누적 성과' },
-];
-const ALL_GUESS = {
-  title: ['caption'], link: ['link'],
-  reach: ['reach'], views: ['views', 'view'], engagement: ['engagement', 'interactions'],
-  likes: ['likes'], comments: ['comments'], saves: ['saves'], shares: ['shares'],
-  hypothesis: ['hypothesis', '가설'], analysis: ['analysis', '분석'], salesImpact: ['salesimpact', '매출전환효과', '매출효과'],
-  initialScore: ['initialscore', '초기'], w1Score: ['w1', '1주차'], w2Score: ['w2', '2주차'],
-  w3Score: ['w3', '3주차'], w4Score: ['w4', '4주차'], finalScore: ['finalscore', '최종', '현재'],
+  KR: { 
+    W20: { gelPressOn: 2400, hardener: 800, gelStrip: 1200, otherCare: 300 }, 
+    W21: { gelPressOn: 3100, hardener: 1500, gelStrip: 1450, otherCare: 450 }, 
+    W22: { gelPressOn: 2800, hardener: 1200, gelStrip: 1300, otherCare: 400 }, 
+    W23: { gelPressOn: 4500, hardener: 2100, gelStrip: 1800, otherCare: 600 }, 
+    W24: { gelPressOn: 3900, hardener: 1800, gelStrip: 1600, otherCare: 500 } 
+  },
+  US: { 
+    W20: { gelPressOn: 800, hardener: 100, gelStrip: 200, otherCare: 50 }, 
+    W21: { gelPressOn: 1100, hardener: 200, gelStrip: 250, otherCare: 80 }, 
+    W22: { gelPressOn: 2500, hardener: 400, gelStrip: 300, otherCare: 100 }, 
+    W23: { gelPressOn: 1800, hardener: 300, gelStrip: 200, otherCare: 90 }, 
+    W24: { gelPressOn: 2100, hardener: 350, gelStrip: 150, otherCare: 120 } 
+  },
 };
 
 // ============================================================
@@ -420,7 +360,6 @@ function Swatch({ color, size = 8 }) {
   return <span style={{ display: 'inline-block', width: size, height: size, borderRadius: '999px', background: color, flexShrink: 0 }} />;
 }
 
-// 섹션 구획용 라벨 — 컬러 바 + 진한 텍스트로 구획을 명확히
 function SectionLabel({ children, color = C.accent, sub }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px' }}>
@@ -497,7 +436,6 @@ function HeroCard({ metricsMap, mkey, value, delta, sub, infoText, accentColor }
   );
 }
 
-// 도달/조회수 전용 카드 — 메인 지표 아래에 오가닉 값을 항상 함께 표시
 function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organicDelta, accentColor }) {
   const m = ACCOUNT_METRICS[mkey];
   const om = ACCOUNT_METRICS[organicKey];
@@ -561,21 +499,6 @@ function TextAreaField({ label, value, onChange, placeholder, rows = 3 }) {
   );
 }
 
-function ChartTooltip({ active, payload, label, labels }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', fontSize: 12, boxShadow: SHADOW }}>
-      <div style={{ fontWeight: 800, marginBottom: 4, color: C.ink }}>{label}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: C.ink }}>
-          <Swatch color={p.color || p.fill} size={7} />
-          {labels?.[p.dataKey] || p.name}: <b>{p.dataKey === 'rate' ? pct(p.value) : fmt(p.value)}</b>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function SyncBadge({ status }) {
   if (status === 'idle') return null;
   const map = {
@@ -593,14 +516,39 @@ function SyncBadge({ status }) {
 }
 
 // ============================================================
-// 콘텐츠 카드 (보기/편집)
+// 콘텐츠 카드
 // ============================================================
-function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, showSalesImpact, showScoreTracking, retroBadge, onSyncInsight, avgReach, showThumbnailUpload }) {
+function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, showSalesImpact, showScoreTracking, retroBadge, onSyncInsight, avgMetrics, metricKey = 'reach', showThumbnailUpload }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item);
   const [insightOpen, setInsightOpen] = useState(false);
   useEffect(() => { setDraft(item); }, [item]);
   const set = (key) => (val) => setDraft((d) => ({ ...d, [key]: val }));
+
+  const standout = useMemo(() => {
+    if (!avgMetrics) return null;
+    let best = null;
+    let maxPct = 0;
+    ['saves', 'shares', 'comments', 'likes', 'reach', 'engagement'].forEach(k => {
+       if (avgMetrics[k] > 50 && item[k] > 0) { 
+         const pct = ((item[k] - avgMetrics[k]) / avgMetrics[k]) * 100;
+         if (pct > maxPct && pct >= 50) { 
+           maxPct = pct;
+           best = { key: k, pct };
+         }
+       }
+    });
+    // 도달+참여 복합 지표용 평균 체크
+    if (avgMetrics['reachAndEngagement'] && (Number(item.reach || 0) + Number(item.engagement || 0)) > 0) {
+       const combinedVal = Number(item.reach || 0) + Number(item.engagement || 0);
+       const pct = ((combinedVal - avgMetrics['reachAndEngagement']) / avgMetrics['reachAndEngagement']) * 100;
+       if (pct > maxPct && pct >= 50) {
+         maxPct = pct;
+         best = { key: 'reachAndEngagement', pct, label: '도달+참여수' };
+       }
+    }
+    return best;
+  }, [item, avgMetrics]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -662,21 +610,6 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, sh
         <div className="flex flex-wrap gap-3 mb-4">
           {subKeys.map((k) => <NumberField key={k} label={metricsMap[k].label} value={draft[k]} onChange={set(k)} width={100} />)}
         </div>
-        {showScoreTracking && (
-          <div className="mb-4">
-            <div style={{ fontSize: 11, color: C.mint, fontWeight: 700, marginBottom: 6 }} className="flex items-center gap-1">
-              <Rocket size={13} /> 성과 추적 (역주행/성장 분석용 · 도달수 기준)
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <NumberField label="초기 성과" value={draft.initialScore} onChange={set('initialScore')} width={100} />
-              <NumberField label="1주차" value={draft.w1Score} onChange={set('w1Score')} width={90} />
-              <NumberField label="2주차" value={draft.w2Score} onChange={set('w2Score')} width={90} />
-              <NumberField label="3주차" value={draft.w3Score} onChange={set('w3Score')} width={90} />
-              <NumberField label="4주차" value={draft.w4Score} onChange={set('w4Score')} width={90} />
-              <NumberField label="최종 누적" value={draft.finalScore} onChange={set('finalScore')} width={100} />
-            </div>
-          </div>
-        )}
         <div className="flex flex-wrap gap-3 mb-4">
           <div style={{ flex: '1 1 240px' }}>
             <TextAreaField label="🤔 가설" value={draft.hypothesis} onChange={set('hypothesis')} placeholder="발행 전 타겟팅 및 실험 가설을 적어주세요." />
@@ -685,23 +618,6 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, sh
             <TextAreaField label="📝 분석 & 추후 방안" value={draft.analysis} onChange={set('analysis')} placeholder="결과 데이터 분석 및 다음 액션 플랜을 적어주세요." />
           </div>
         </div>
-        <div className="mb-4">
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.sub, marginBottom: 6 }}>제품군</div>
-          <div className="flex flex-wrap gap-2">
-            {[{ key: '', label: '미분류' }, ...PRODUCT_CATS].map((p) => (
-              <button key={p.key} onClick={() => setDraft((d) => ({ ...d, productCategory: p.key }))}
-                style={{ fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${draft.productCategory === p.key ? (p.color || C.ink) : C.border}`, background: draft.productCategory === p.key ? `${p.color || C.ink}15` : '#fff', color: draft.productCategory === p.key ? (p.color || C.ink) : C.sub, cursor: 'pointer' }}>
-                {draft.productCategory === p.key ? '✓ ' : ''}{p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {showSalesImpact && (
-          <div className="mb-4">
-            <TextAreaField label="매출전환효과" value={draft.salesImpact || ''} onChange={set('salesImpact')}
-              placeholder="예: 판매건수 150% 상승 (30 → 45) / 전환율 2.1% → 3.4%" rows={2} />
-          </div>
-        )}
         <div className="flex gap-2 justify-end">
           <button onClick={() => { setEditing(false); setDraft(item); }} className="flex items-center gap-1"
             style={{ fontSize: 13, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, fontWeight: 600 }}>
@@ -730,41 +646,24 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, sh
             style={{ fontSize: 14, fontWeight: 700, color: C.ink, textDecoration: 'none', marginBottom: 6 }}>
             {item.title || '(제목 없음)'}{item.link && <ExternalLink size={12} color={C.sub} />}
           </a>
-          {item.productCategory && (() => {
-            const p = PRODUCT_CATS.find((c) => c.key === item.productCategory);
-            return p ? (
-              <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 999, background: `${p.color}18`, color: p.color, border: `1px solid ${p.color}40`, marginBottom: 6 }}>
-                # {p.label}
-              </span>
-            ) : null;
-          })()}
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 items-center">
             {coreKeys.map((k) => <MetricPill key={k} metricsMap={metricsMap} mkey={k} value={item[k]} big />)}
-            {avgReach > 0 && (() => {
-              const reach = Number(item.reach || 0);
-              const diff = ((reach - avgReach) / avgReach) * 100;
-              const isAbove = diff >= 0;
-              return (
-                <span style={{
-                  fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
-                  background: isAbove ? 'rgba(46,158,137,0.14)' : 'rgba(232,84,107,0.12)',
-                  color: isAbove ? C.mint : C.accent, whiteSpace: 'nowrap',
-                }}>
-                  {isAbove ? '▲' : '▼'} 평균 대비 {isAbove ? '+' : ''}{diff.toFixed(0)}%
-                </span>
-              );
-            })()}
+            
+            {standout && (
+              <span className="flex items-center gap-0.5" style={{
+                fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 999,
+                background: '#FFF4E5', color: '#E65100', border: '1px solid #FFE0B2', whiteSpace: 'nowrap'
+              }}>
+                <Flame size={12} strokeWidth={2.5} style={{ marginRight: 2 }} /> 
+                {standout.label || metricsMap[standout.key]?.label || standout.key} 터짐 (+{standout.pct.toFixed(0)}%)
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1.5" style={{ flex: '1 1 240px' }}>
           {subKeys.map((k) => <MetricPill key={k} metricsMap={metricsMap} mkey={k} value={item[k]} />)}
         </div>
         <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-          {retroBadge != null && (
-            <span style={{ fontSize: 11, fontWeight: 800, padding: '5px 10px', borderRadius: 999, background: 'rgba(46,158,137,0.16)', color: C.mint, whiteSpace: 'nowrap', marginRight: 4 }}>
-              {`+${retroBadge.toFixed(0)}% 역주행`}
-            </span>
-          )}
           <button onClick={() => setEditing(true)} style={{ padding: 7, borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub }}><Pencil size={14} /></button>
           <button onClick={() => onDelete(item.id)} style={{ padding: 7, borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.accent }}><Trash2 size={14} /></button>
         </div>
@@ -806,186 +705,33 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, onSave, onDelete, sh
 }
 
 // ============================================================
-// 시트 가져오기 패널
+// 차트 툴팁 컴포넌트
 // ============================================================
-function ImportSection({ week, fields, guess, mappingStorageKey, buildItem, onImport, label }) {
-  const [open, setOpen] = useState(false);
-  const [pasteText, setPasteText] = useState('');
-  const [headers, setHeaders] = useState([]);
-  const [parsedRows, setParsedRows] = useState([]);
-  const [mapping, setMapping] = useState({});
-
-  useEffect(() => {
-    (async () => {
-      try { const r = await window.storage.get(mappingStorageKey, true); if (r?.value) setMapping(JSON.parse(r.value)); } catch (e) {}
-    })();
-  }, [mappingStorageKey]);
-
-  const persistMapping = async (next) => {
-    setMapping(next);
-    try { await window.storage.set(mappingStorageKey, JSON.stringify(next), true); } catch (e) {}
-  };
-
-  const handleParse = () => {
-    const lines = pasteText.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    if (lines.length < 2) { setHeaders([]); setParsedRows([]); return; }
-    const hdrs = lines[0].split('\t').map((h) => h.trim());
-    const rows = lines.slice(1).map((line) => { const cells = line.split('\t'); const obj = {}; hdrs.forEach((h, i) => { obj[h] = (cells[i] ?? '').trim(); }); return obj; });
-    setHeaders(hdrs); setParsedRows(rows);
-    const needsGuess = fields.some((f) => !mapping[f.key] || !hdrs.includes(mapping[f.key]));
-    if (needsGuess) {
-      const guessed = { ...mapping };
-      fields.forEach((f) => {
-        if (guessed[f.key] && hdrs.includes(guessed[f.key])) return;
-        const candidates = guess[f.key] || [];
-        let found = hdrs.find((h) => candidates.includes(h.toLowerCase()));
-        if (!found) found = hdrs.find((h) => candidates.some((c) => h.toLowerCase().includes(c)));
-        guessed[f.key] = found || '';
-      });
-      persistMapping(guessed);
-    }
-  };
-
-  const handleImport = () => {
-    onImport(parsedRows.map((row) => buildItem(row, mapping)));
-    setOpen(false); setPasteText(''); setHeaders([]); setParsedRows([]);
-  };
-
+function ChartTooltip({ active, payload, label, labels }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="mb-3">
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-1"
-        style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.ink }}>
-        <ClipboardPaste size={14} /> {label || '시트에서 가져오기'} {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
-      {open && (
-        <div style={{ marginTop: 10, padding: 14, background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 12, color: C.sub, marginBottom: 8, lineHeight: 1.6 }}>
-            구글시트에서 <b>헤더 행을 포함</b>해 {week} 데이터 범위를 선택 → 복사(Ctrl+C) → 아래에 붙여넣기(Ctrl+V) 하세요.
-          </div>
-          <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="여기에 구글시트에서 복사한 내용을 붙여넣으세요 (헤더 행 포함)" rows={4}
-            style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontSize: 12, fontFamily: 'monospace', resize: 'vertical', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
-          <div className="flex flex-wrap gap-2 mt-2">
-            <button onClick={handleParse} disabled={!pasteText.trim()} className="flex items-center gap-1"
-              style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.ink, opacity: pasteText.trim() ? 1 : 0.4 }}>
-              <ClipboardPaste size={14} /> 컬럼 인식
-            </button>
-            {headers.length > 0 && <span style={{ fontSize: 12, color: C.sub, alignSelf: 'center' }}>{headers.length}개 컬럼 · {parsedRows.length}개 행 인식됨</span>}
-          </div>
-          {headers.length > 0 && (
-            <>
-              <div style={{ fontSize: 12, color: C.sub, fontWeight: 700, margin: '12px 0 8px' }}>컬럼 매핑</div>
-              <div className="flex flex-wrap gap-3 mb-3">
-                {fields.map((f) => (
-                  <label key={f.key} className="flex flex-col gap-1" style={{ width: 150 }}>
-                    <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>{f.label}</span>
-                    <select value={mapping[f.key] || ''} onChange={(e) => persistMapping({ ...mapping, [f.key]: e.target.value })}
-                      style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 12, background: '#fff', color: C.ink }}>
-                      <option value="">선택 안 함</option>
-                      {headers.map((h) => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </label>
-                ))}
-              </div>
-              <button onClick={handleImport} className="flex items-center gap-1"
-                style={{ fontSize: 13, fontWeight: 700, padding: '8px 14px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff' }}>
-                <ArrowDownToLine size={14} /> {week}에 가져오기 ({parsedRows.length}건, 기존 목록 대체)
-              </button>
-            </>
+    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: SHADOW }}>
+      <div style={{ fontWeight: 800, marginBottom: 6, color: C.ink }}>{label}</div>
+      {payload.map((p) => (
+        <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: C.ink, marginBottom: 3 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color || p.fill, display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ minWidth: 35 }}>{labels?.[p.dataKey] || p.name || p.dataKey}</span>
+          <b>
+            {p.dataKey === 'sales' ? fmtMetric('sales', p.payload[`_raw_${p.dataKey}`]) : fmt(p.payload[`_raw_${p.dataKey}`] || p.value)}
+          </b>
+          {p.payload[`_raw_${p.dataKey}`] !== undefined && (
+            <span style={{ color: C.sub, fontSize: 11, marginLeft: 4 }}>(지수: {p.value})</span>
           )}
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
 // ============================================================
-// 계정 지표 입력 테이블
+// 뷰 컴포넌트 
 // ============================================================
-function AccountMetricsTable({ weekKeys, metrics, onChange }) {
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 1100 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 12, color: C.sub }}>주차</th>
-            {ALL_ACCOUNT_KEYS.map((k) => <th key={k} style={{ textAlign: 'left', padding: '6px 8px', fontSize: 12, color: C.sub, whiteSpace: 'nowrap' }}>{ACCOUNT_METRICS[k].label}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {weekKeys.map((w) => (
-            <tr key={w}>
-              <td style={{ padding: '6px 8px', fontSize: 13, fontWeight: 700 }}>{w}</td>
-              {ALL_ACCOUNT_KEYS.map((k) => (
-                <td key={k} style={{ padding: '4px 8px' }}>
-                  <input type="number" value={metrics[w]?.[k] ?? 0}
-                    onChange={(e) => onChange(w, k, e.target.value === '' ? 0 : Number(e.target.value))}
-                    style={{ border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 13, width: 100 }} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ============================================================
-// 릴스 타율 커스텀 툴팁 (상위 3개 콘텐츠 표시)
-// ============================================================
-function ReelsTooltip({ active, payload, label, allContents, countryKey }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload || {};
-  const top3 = ((allContents[countryKey]?.[label]) || [])
-    .filter(isReel)
-    .sort((a, b) => Number(b.reach || 0) - Number(a.reach || 0))
-    .slice(0, 3);
-  const hitColor = d.hitRate >= 70 ? '#2E9E89' : d.hitRate >= 50 ? '#E08A2B' : '#E8546B';
-  const hitEmoji = d.hitRate >= 70 ? '🔥' : d.hitRate >= 50 ? '✓' : '△';
-  return (
-    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, maxWidth: 300, boxShadow: '0 2px 10px rgba(0,0,0,0.09)' }}>
-      <div style={{ fontWeight: 800, marginBottom: 8, color: C.ink }}>{label}</div>
-      <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-        <span style={{ color: C.sub }}>발행 수</span>
-        <b style={{ color: C.ink }}>{d.reelCount}개</b>
-      </div>
-      {d.hitRate != null && (
-        <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-          <span style={{ color: C.sub }}>타율</span>
-          <b style={{ color: hitColor, fontSize: 14 }}>{d.hitRate}%</b>
-          <span style={{ fontSize: 13 }}>{hitEmoji}</span>
-          <span style={{ color: C.sub, fontSize: 11 }}>({d.reelCount > 0 ? `${Math.round(d.hitRate * d.reelCount / 100)}/${d.reelCount}개 기준 초과` : '-'})</span>
-        </div>
-      )}
-      <div className="flex items-center gap-2" style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>
-        <span style={{ color: C.sub }}>평균 도달</span>
-        <b style={{ color: C.ink }}>{fmt(d.avgReach)}</b>
-      </div>
-      {top3.length > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, marginBottom: 5 }}>📌 도달 상위 릴스</div>
-          {top3.map((item, i) => (
-            <div key={i} style={{ marginBottom: i < top3.length - 1 ? 6 : 0 }}>
-              <a href={item.link || undefined} target="_blank" rel="noreferrer"
-                style={{ fontWeight: 700, color: C.ink, lineHeight: 1.4, fontSize: 11, textDecoration: 'none', display: 'block', cursor: item.link ? 'pointer' : 'default' }}
-                onMouseEnter={(e) => { if (item.link) e.currentTarget.style.color = C.accent; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = C.ink; }}>
-                {i + 1}. {(item.title || '').length > 32 ? (item.title || '').slice(0, 32) + '…' : (item.title || '')}{item.link ? ' ↗' : ''}
-              </a>
-              <div style={{ color: C.sub, fontSize: 11 }}>도달 {fmt(item.reach)}</div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// 통합 요약 뷰 — 국가 탭으로 전환, 핵심 카드만 간단히
-// 추이 차트·릴스 타율 분석·콘텐츠 리스트·인사이트 등 상세는 국가별 대시보드에서 확인
-// ============================================================
-function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, productSales, onProductSalesChange }) {
+function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, productSales }) {
   const [tab, setTab] = useState('KR');
   const accent = tab === 'KR' ? '#E8546B' : '#3E6FE0';
   const weekKeys = weekMeta.map((w) => w.key);
@@ -998,18 +744,75 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
     const prev = val(country, prevWeek, k);
     return prev ? ((cur - prev) / prev) * 100 : null;
   };
+  const labelsA = metricLabels(ACCOUNT_METRICS);
+  const [showMonthlyTable, setShowMonthlyTable] = useState(false);
 
-  // 콘텐츠 타율 (직전 8주 평균 도달, 상위 5% 메가바이럴 제외)
+  // 통합요약 연간 누적 월별 차트 (매출, 유입, 도달, 참여)
+  const latestMonthStr = weekMeta[weekMeta.length - 1]?.month || '2026-06';
+  const currentYear = latestMonthStr.split('-')[0];
+  const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10);
+  const monthList = Array.from({length: latestMonthNum}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
+
+  const monthlyData = monthList.map(m => {
+      const wks = weekMeta.filter(w => w.month === m).map(w => w.key);
+      const data = { month: m, sales: 0, inflow: 0, reach: 0, engagement: 0 };
+      wks.forEach(wk => {
+          data.sales += val(tab, wk, 'sales') || 0;
+          data.inflow += val(tab, wk, 'inflow') || 0;
+          data.reach += val(tab, wk, 'reach') || 0;
+          data.engagement += val(tab, wk, 'engagement') || 0;
+      });
+      return data;
+  });
+
+  const mBase = {
+      sales: monthlyData.find(d => d.sales > 0)?.sales || 1,
+      inflow: monthlyData.find(d => d.inflow > 0)?.inflow || 1,
+      reach: monthlyData.find(d => d.reach > 0)?.reach || 1,
+      engagement: monthlyData.find(d => d.engagement > 0)?.engagement || 1,
+  };
+
+  const monthlyTrendNorm = monthlyData.map(d => ({
+      month: fmtMonth(d.month),
+      sales: Math.round((d.sales / mBase.sales) * 100),
+      inflow: Math.round((d.inflow / mBase.inflow) * 100),
+      reach: Math.round((d.reach / mBase.reach) * 100),
+      engagement: Math.round((d.engagement / mBase.engagement) * 100),
+      _raw_sales: d.sales,
+      _raw_inflow: d.inflow,
+      _raw_reach: d.reach,
+      _raw_engagement: d.engagement,
+  }));
+
+  // 통합요약 Top 3 콘텐츠 로직: '도달수 + 참여수' 기준 합산
   const BASELINE_WEEKS = 8;
   const baselineWeeksList = lastNWeeksKeys(weekMeta, selectedWeek, BASELINE_WEEKS);
-  const reelsBaseAvg = (() => {
-    const items = baselineWeeksList.flatMap((w) => allContents[tab]?.[w] || []).filter(isReel);
-    const reaches = items.map((i) => Number(i.reach || 0)).sort((a, b) => b - a);
-    const cutoff = Math.ceil(reaches.length * 0.05);
-    const filtered = reaches.slice(cutoff);
-    return filtered.length ? filtered.reduce((s, v) => s + v, 0) / filtered.length : 0;
-  })();
-  const baselineInfoText = `직전 ${BASELINE_WEEKS}주(${baselineWeeksList[0] || '-'}~${selectedWeek}) 릴스 도달 중 상위 5% 메가바이럴을 제외한 평균입니다. 이 평균 이상 도달한 릴스 비율이 타율이에요.`;
+  const rangeItems = baselineWeeksList.flatMap((w) => allContents[tab]?.[w] || []);
+  
+  const avgMetrics = {};
+  ['reach', 'views', 'engagement', 'likes', 'comments', 'saves', 'shares'].forEach(k => {
+     const vals = rangeItems.map(i => Number(i[k] || 0)).sort((a,b)=>b-a);
+     const cutoff = Math.ceil(vals.length * 0.05);
+     const valid = vals.slice(cutoff);
+     avgMetrics[k] = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
+  });
+  
+  // 합산 지표 평균 계산
+  const combinedVals = rangeItems.map(i => Number(i.reach || 0) + Number(i.engagement || 0)).sort((a,b)=>b-a);
+  const combinedCutoff = Math.ceil(combinedVals.length * 0.05);
+  const combinedValid = combinedVals.slice(combinedCutoff);
+  avgMetrics['reachAndEngagement'] = combinedValid.length ? combinedValid.reduce((a,b)=>a+b,0)/combinedValid.length : 0;
+
+  const weekItems = allContents[tab]?.[selectedWeek] || [];
+  const topContent = [...weekItems]
+    .sort((a, b) => {
+        const scoreA = Number(a.reach || 0) + Number(a.engagement || 0);
+        const scoreB = Number(b.reach || 0) + Number(b.engagement || 0);
+        return scoreB - scoreA;
+    })
+    .slice(0, 3);
+
+  const reelsBaseAvg = avgMetrics.reach || 0;
   const calcHitRate = (w) => {
     const items = allContents[tab]?.[w] || [];
     const reels = items.filter(isReel);
@@ -1025,7 +828,6 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: 4 }}>
         <div>
           <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 4px' }}>통합 요약 · {selectedWeek}</h2>
-          <div style={{ fontSize: 12, color: C.sub }}>핵심 지표만 간단히 확인 · 콘텐츠 리스트·인사이트·릴스 타율 분석 등 상세는 국가별 대시보드에서</div>
         </div>
         <div className="flex gap-1.5">
           {COUNTRIES.map((c) => {
@@ -1046,12 +848,12 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
       <SectionLabel color={ACCOUNT_METRICS.sales.color}>매출 · 유입</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
         <HeroCard metricsMap={ACCOUNT_METRICS} mkey="sales" value={val(tab, selectedWeek, 'sales')} delta={wowDelta(tab, 'sales')} accentColor={accent}
-          sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>달성률 {fmtMetric('achieveRate', val(tab, selectedWeek, 'achieveRate'))}</span>} />
+          sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>달성률 {fmtMetric('salesAchieveRate', val(tab, selectedWeek, 'salesAchieveRate'))}</span>} />
         <HeroCard metricsMap={ACCOUNT_METRICS} mkey="inflow" value={val(tab, selectedWeek, 'inflow')} delta={wowDelta(tab, 'inflow')} accentColor={accent}
-          sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>달성률 {fmtMetric('achieveRate', val(tab, selectedWeek, 'achieveRate'))}</span>} />
+          sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>달성률 {fmtMetric('inflowAchieveRate', val(tab, selectedWeek, 'inflowAchieveRate'))}</span>} />
       </div>
 
-      <SectionLabel color={ACCOUNT_METRICS.reach.color} sub="도달·조회수는 오가닉 값을 함께 표시">SNS 채널 · 도달 · 조회수 · 참여</SectionLabel>
+      <SectionLabel color={ACCOUNT_METRICS.reach.color}>SNS 채널 · 도달 · 조회수 · 참여</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-3">
         <ReachOrganicCard mkey="reach" organicKey="organicReach" value={val(tab, selectedWeek, 'reach')} organicValue={val(tab, selectedWeek, 'organicReach')} delta={wowDelta(tab, 'reach')} organicDelta={wowDelta(tab, 'organicReach')} accentColor={accent} />
         <ReachOrganicCard mkey="views" organicKey="organicViews" value={val(tab, selectedWeek, 'views')} organicValue={val(tab, selectedWeek, 'organicViews')} delta={wowDelta(tab, 'views')} organicDelta={wowDelta(tab, 'organicViews')} accentColor={accent} />
@@ -1061,29 +863,81 @@ function SummaryView({ weekMeta, selectedWeek, displayWeeks, accountMetrics, all
       <SectionLabel color="#E08A2B">콘텐츠 발행 · 타율</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
         <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={val(tab, selectedWeek, 'contentsCount')} delta={wowDelta(tab, 'contentsCount')} accentColor={accent} />
-        <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={hitRateNow ?? 0} delta={hitRateDelta} infoText={baselineInfoText} accentColor={accent} />
+        <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={hitRateNow ?? 0} delta={hitRateDelta} accentColor={accent} />
       </div>
 
-      <SectionLabel color={ACCOUNT_METRICS.newFollowers.color}>계정 성장</SectionLabel>
-      <div className="flex flex-wrap gap-3 mb-2">
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="newFollowers" value={val(tab, selectedWeek, 'newFollowers')} delta={wowDelta(tab, 'newFollowers')} accentColor={accent} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="profileVisits" value={val(tab, selectedWeek, 'profileVisits')} delta={wowDelta(tab, 'profileVisits')} accentColor={accent} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="websiteClicks" value={val(tab, selectedWeek, 'websiteClicks')} delta={wowDelta(tab, 'websiteClicks')} accentColor={accent} />
+      <div className="mb-8 mt-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
+        <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>월간 매출 · 유입 · 도달 · 참여 추이 비교</h3>
+            <div style={{ fontSize: 12, color: C.sub }}>
+              {currentYear}년 전체 월별 누적 데이터 · 첫 달 대비 지수(=100)로 정규화하여 스케일이 다른 지표를 비교합니다.
+            </div>
+          </div>
+          <button onClick={() => setShowMonthlyTable((v) => !v)} className="flex items-center gap-1.5"
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyTable ? C.ink : '#fff', color: showMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>
+            {showMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
+          </button>
+        </div>
+        <div style={{ width: '100%', height: 260 }}>
+          <ResponsiveContainer>
+            <LineChart data={monthlyTrendNorm} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid stroke={C.border} vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip labels={labelsA} />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsA[v] || v} />
+              <Line type="monotone" dataKey="sales" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="inflow" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        {showMonthlyTable && (
+          <div style={{ marginTop: 14, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${C.border}` }}>
+                  {['월', '매출', '유입', '도달수', '참여수'].map((h) => (
+                    <th key={h} style={{ textAlign: h === '월' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyTrendNorm.map((d, i) => (
+                  <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmtMetric('sales', d._raw_sales)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_inflow)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_reach)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_engagement)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
+        <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🏆 상위 콘텐츠 (도달+참여 기준 Top 3)</h3>
+        </div>
+        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>{selectedWeek} 발행 콘텐츠 중 도달수와 참여수를 합산하여 가장 성과가 높은 3개입니다.</div>
+        <div className="flex flex-col gap-2.5 mt-4">
+          {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>표시할 콘텐츠가 없습니다.</div>}
+          {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={()=>{}} onDelete={()=>{}} avgMetrics={avgMetrics} />)}
+        </div>
       </div>
     </div>
   );
 }
-// ============================================================
-// 국가별 대시보드 뷰
-// ============================================================
+
 function CountryView({
   countryKey, weekMeta, selectedWeek, displayWeeks,
-  accountMetrics, onAccountChange,
-  countryInsights, onInsightChange,
-  allContents, onAllContentsChange,
-  productSales, onProductSalesChange,
-  activeProjects, onProjectsChange,
-  onSyncContent,
+  accountMetrics, countryInsights, onInsightChange,
+  allContents, onAllContentsChange, onSyncContent,
 }) {
   const country = COUNTRIES.find((c) => c.key === countryKey);
   const weekKeys = weekMeta.map((w) => w.key);
@@ -1097,74 +951,69 @@ function CountryView({
     const prev = totals(prevWeek)[k];
     return prev ? ((cur - prev) / prev) * 100 : null;
   };
-  const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) }));
   const labelsA = metricLabels(ACCOUNT_METRICS);
 
-  const SECONDARY_KEYS = ['newFollowers', 'profileVisits', 'websiteClicks'];
-  const secondaryBase = Object.fromEntries(SECONDARY_KEYS.map((k) => [k, trendData.find((d) => d[k] > 0)?.[k] || 0]));
-  const secondaryTrendNorm = trendData.map((d) => {
-    const entry = { week: d.week };
-    SECONDARY_KEYS.forEach((k) => {
-      entry[k] = secondaryBase[k] > 0 ? Math.round((d[k] / secondaryBase[k]) * 100) : 0;
-      entry[`_raw_${k}`] = d[k];
-    });
-    return entry;
+  const [showMonthlyTable, setShowMonthlyTable] = useState(false);
+
+  // 1. 해당 연도 전체 월 리스트 생성 
+  const latestMonthStr = weekMeta[weekMeta.length - 1]?.month || '2026-06';
+  const currentYear = latestMonthStr.split('-')[0];
+  const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10);
+  const monthList = Array.from({length: latestMonthNum}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
+
+  // 2. 월별 데이터 집계 
+  const monthlyData = monthList.map(m => {
+      const wks = weekMeta.filter(w => w.month === m).map(w => w.key);
+      const data = { month: m, sales: 0, inflow: 0, reach: 0, engagement: 0 };
+      wks.forEach(wk => {
+          data.sales += totals(wk).sales || 0;
+          data.inflow += totals(wk).inflow || 0;
+          data.reach += totals(wk).reach || 0;
+          data.engagement += totals(wk).engagement || 0;
+      });
+      return data;
   });
-  const renderSecondaryTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px', fontSize: 12, boxShadow: SHADOW }}>
-        <div style={{ fontWeight: 800, marginBottom: 6, color: C.ink }}>{label}</div>
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center gap-1.5" style={{ color: C.ink, marginBottom: 3 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, display: 'inline-block', flexShrink: 0 }} />
-            <span style={{ minWidth: 76 }}>{labelsA[p.dataKey] || p.dataKey}</span>
-            <b>{fmt(p.payload[`_raw_${p.dataKey}`])}</b>
-            <span style={{ color: C.sub, fontSize: 11 }}>({p.value})</span>
-          </div>
-        ))}
-      </div>
-    );
+
+  const mBase = {
+      sales: monthlyData.find(d => d.sales > 0)?.sales || 1,
+      inflow: monthlyData.find(d => d.inflow > 0)?.inflow || 1,
+      reach: monthlyData.find(d => d.reach > 0)?.reach || 1,
+      engagement: monthlyData.find(d => d.engagement > 0)?.engagement || 1,
   };
-  const [showInputTable, setShowInputTable] = useState(false);
-  const [showAllList, setShowAllList] = useState(false);
-  const [showMetricsTable, setShowMetricsTable] = useState(false);
-  const [showReachEngTable, setShowReachEngTable] = useState(false);
-  const [showReelsTable, setShowReelsTable] = useState(false);
-  const [showProdWeeklyTable, setShowProdWeeklyTable] = useState(false);
-  const [showProdMonthlyTable, setShowProdMonthlyTable] = useState(false);
-  const [subView, setSubView] = useState('overview');
-  const [selectedProduct, setSelectedProduct] = useState('gelPressOn');
+
+  const monthlyTrendNorm = monthlyData.map(d => ({
+      month: fmtMonth(d.month),
+      sales: Math.round((d.sales / mBase.sales) * 100),
+      inflow: Math.round((d.inflow / mBase.inflow) * 100),
+      reach: Math.round((d.reach / mBase.reach) * 100),
+      engagement: Math.round((d.engagement / mBase.engagement) * 100),
+      _raw_sales: d.sales,
+      _raw_inflow: d.inflow,
+      _raw_reach: d.reach,
+      _raw_engagement: d.engagement,
+  }));
 
   const BASELINE_WEEKS = 8;
   const rangeWeeks = lastNWeeksKeys(weekMeta, selectedWeek, BASELINE_WEEKS);
   const rangeItems = rangeWeeks.flatMap((w) => allContents[countryKey]?.[w] || []);
-  const reaches = rangeItems.map((i) => Number(i.reach || 0)).sort((a, b) => b - a);
-  const top5cutoff = Math.ceil(reaches.length * 0.05);
-  const filteredReaches = reaches.slice(top5cutoff);
-  const avgReach = filteredReaches.length ? filteredReaches.reduce((s, v) => s + v, 0) / filteredReaches.length : 0;
-  const baselineInfoText = `직전 ${BASELINE_WEEKS}주(${rangeWeeks[0] || '-'}~${selectedWeek}) 콘텐츠 도달 중 상위 5% 메가바이럴을 제외한 평균입니다. 이 평균 이상이면 "타율 적중", "평균 이상"으로 표시돼요.`;
-  const weekItems = allContents[countryKey]?.[selectedWeek] || [];
-  const topContent = weekItems.filter((i) => Number(i.reach || 0) >= avgReach).sort((a, b) => Number(b.reach || 0) - Number(a.reach || 0)).slice(0, 5);
-  const bottomContent = weekItems.filter((i) => Number(i.reach || 0) < avgReach).sort((a, b) => Number(a.reach || 0) - Number(b.reach || 0)).slice(0, 5);
-  const countryReelsWeekData = displayWeeks.map((w) => {
-    const items = allContents[countryKey]?.[w] || [];
-    const reels = items.filter(isReel);
-    const avgR = reels.length ? Math.round(reels.reduce((s, i) => s + Number(i.reach || 0), 0) / reels.length) : 0;
-    const hits = reels.filter((r) => Number(r.reach || 0) >= avgReach).length;
-    const hitRate = reels.length ? Math.round((hits / reels.length) * 100) : null;
-    return { week: w, reelCount: reels.length, avgReach: avgR, hitRate };
+  
+  const avgMetrics = {};
+  ['reach', 'views', 'engagement', 'likes', 'comments', 'saves', 'shares'].forEach(k => {
+     const vals = rangeItems.map(i => Number(i[k] || 0)).sort((a,b)=>b-a);
+     const cutoff = Math.ceil(vals.length * 0.05); 
+     const valid = vals.slice(cutoff);
+     avgMetrics[k] = valid.length ? valid.reduce((a,b)=>a+b,0)/valid.length : 0;
   });
-  const calcCountryHitRate = (w) => {
-    const items = allContents[countryKey]?.[w] || [];
-    const reels = items.filter(isReel);
-    const hits = reels.filter((r) => Number(r.reach || 0) >= avgReach).length;
-    return reels.length ? Math.round((hits / reels.length) * 100) : null;
-  };
-  const weekHitRate = calcCountryHitRate(selectedWeek);
-  const prevHitRate = prevWeek ? calcCountryHitRate(prevWeek) : null;
-  const hitRateDelta = weekHitRate != null && prevHitRate != null ? weekHitRate - prevHitRate : null;
-
+  
+  const combinedVals = rangeItems.map(i => Number(i.reach || 0) + Number(i.engagement || 0)).sort((a,b)=>b-a);
+  const combinedCutoff = Math.ceil(combinedVals.length * 0.05);
+  const combinedValid = combinedVals.slice(combinedCutoff);
+  avgMetrics['reachAndEngagement'] = combinedValid.length ? combinedValid.reduce((a,b)=>a+b,0)/combinedValid.length : 0;
+  
+  const weekItems = allContents[countryKey]?.[selectedWeek] || [];
+  const topContent = weekItems.filter((i) => Number(i.engagement || 0) >= avgMetrics.engagement).sort((a, b) => Number(b.engagement || 0) - Number(a.engagement || 0)).slice(0, 5);
+  const bottomContent = weekItems.filter((i) => Number(i.engagement || 0) < avgMetrics.engagement).sort((a, b) => Number(a.engagement || 0) - Number(b.engagement || 0)).slice(0, 5);
+  
   const updateAllItem = (item) => {
     const list = weekItems.map((c) => (c.id === item.id ? item : c));
     onAllContentsChange({ ...allContents, [countryKey]: { ...allContents[countryKey], [selectedWeek]: list } });
@@ -1173,31 +1022,6 @@ function CountryView({
     const list = weekItems.filter((c) => c.id !== id);
     onAllContentsChange({ ...allContents, [countryKey]: { ...allContents[countryKey], [selectedWeek]: list } });
   };
-  const addAllItem = () => {
-    const allIds = Object.values(allContents).flatMap((byWeek) => Object.values(byWeek).flat()).map((c) => c.id);
-    const newId = (allIds.length ? Math.max(...allIds) : 0) + 1;
-    const list = [...weekItems, blankItem(newId, '새 콘텐츠', CONTENT_KEYS)];
-    onAllContentsChange({ ...allContents, [countryKey]: { ...allContents[countryKey], [selectedWeek]: list } });
-  };
-  const importAllItems = (newList) => {
-    const existingByLink = {};
-    weekItems.forEach((c) => { if (c.link) existingByLink[c.link] = c; });
-    const allIds = Object.values(allContents).flatMap((byWeek) => Object.values(byWeek).flat()).map((c) => c.id);
-    let nextId = (allIds.length ? Math.max(...allIds) : 0) + 1;
-    const built = newList.map((item) => {
-      const existing = item.link ? existingByLink[item.link] : null;
-      return { ...item, id: existing?.id ?? nextId++, hypothesis: item.hypothesis || existing?.hypothesis || '', analysis: item.analysis || existing?.analysis || '', salesImpact: item.salesImpact || existing?.salesImpact || '' };
-    });
-    onAllContentsChange({ ...allContents, [countryKey]: { ...allContents[countryKey], [selectedWeek]: built } });
-  };
-  const buildAllItem = (row, mapping) => {
-    const link = mapping.link ? row[mapping.link] : '';
-    const item = { id: 0, title: mapping.title ? row[mapping.title] : '', link, hypothesis: mapping.hypothesis ? row[mapping.hypothesis] : '', analysis: mapping.analysis ? row[mapping.analysis] : '', salesImpact: mapping.salesImpact ? row[mapping.salesImpact] : '' };
-    CONTENT_KEYS.forEach((k) => { item[k] = mapping[k] ? numFrom(row[mapping[k]]) : 0; });
-    ['initialScore', 'w1Score', 'w2Score', 'w3Score', 'w4Score', 'finalScore'].forEach((k) => { item[k] = mapping[k] ? numFrom(row[mapping[k]]) : 0; });
-    return item;
-  };
-
   const handleSyncContent = (item, category = '') => {
     if (onSyncContent) {
       onSyncContent({ type: 'content', country: countryKey, week: selectedWeek, category, url: item.link, title: item.title, hypothesis: item.hypothesis, analysis: item.analysis, salesImpact: item.salesImpact });
@@ -1208,22 +1032,13 @@ function CountryView({
     <div>
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ marginBottom: 16 }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{country.label} 대시보드 · {selectedWeek}</h2>
-        <div className="flex gap-1.5">
-          {[{ key: 'overview', label: '전체 현황' }, { key: 'product', label: '제품군별 성과' }].map((t) => (
-            <button key={t.key} onClick={() => setSubView(t.key)}
-              style={{ padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1.5px solid ${subView === t.key ? C.ink : C.border}`, background: subView === t.key ? C.ink : '#fff', color: subView === t.key ? '#fff' : C.sub, cursor: 'pointer' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div style={{ display: subView === 'overview' ? 'block' : 'none' }}>
       <SectionLabel color={ACCOUNT_METRICS.sales.color}>매출 · 유입</SectionLabel>
       <div className="flex flex-wrap gap-3 mb-1">
         {[
-          { k: 'sales', subs: [{ key: 'achieveRate', icon: Check }] },
-          { k: 'inflow', subs: [{ key: 'achieveRate', icon: Check }] },
+          { k: 'sales', subs: [{ key: 'salesAchieveRate', icon: Check }] },
+          { k: 'inflow', subs: [{ key: 'inflowAchieveRate', icon: Check }] },
         ].map(({ k, subs }) => (
           <HeroCard key={k} metricsMap={ACCOUNT_METRICS} mkey={k} value={totals(selectedWeek)[k]} delta={wowDelta(k)}
             sub={
@@ -1236,7 +1051,6 @@ function CountryView({
                     </div>
                     <div className="flex items-center gap-2">
                       <span style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>{fmtMetric(subKey, totals(selectedWeek)[subKey])}</span>
-                      <DeltaTag value={wowDelta(subKey)} />
                     </div>
                   </div>
                 ))}
@@ -1246,174 +1060,59 @@ function CountryView({
         ))}
       </div>
 
-      <SectionLabel color={ACCOUNT_METRICS.reach.color} sub="도달·조회수는 오가닉 값을 함께 표시">채널 핵심지표</SectionLabel>
-      <div className="flex flex-wrap gap-3 mb-3">
+      <SectionLabel color={ACCOUNT_METRICS.reach.color}>채널 핵심지표</SectionLabel>
+      <div className="flex flex-wrap gap-3 mb-8">
         <ReachOrganicCard mkey="reach" organicKey="organicReach" value={totals(selectedWeek).reach} organicValue={totals(selectedWeek).organicReach} delta={wowDelta('reach')} organicDelta={wowDelta('organicReach')} />
         <ReachOrganicCard mkey="views" organicKey="organicViews" value={totals(selectedWeek).views} organicValue={totals(selectedWeek).organicViews} delta={wowDelta('views')} organicDelta={wowDelta('organicViews')} />
         <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
       </div>
-      <div className="flex flex-wrap gap-3 mb-1">
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={totals(selectedWeek).contentsCount} delta={wowDelta('contentsCount')} />
-        <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={weekHitRate ?? 0} delta={hitRateDelta} infoText={baselineInfoText} />
-      </div>
-
-      <SectionLabel color={ACCOUNT_METRICS.newFollowers.color}>계정 성장 / 구매유도</SectionLabel>
-      <div className="flex flex-wrap gap-3 mb-7">
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="newFollowers" value={totals(selectedWeek).newFollowers} delta={wowDelta('newFollowers')} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="profileVisits" value={totals(selectedWeek).profileVisits} delta={wowDelta('profileVisits')} />
-        <HeroCard metricsMap={ACCOUNT_METRICS} mkey="websiteClicks" value={totals(selectedWeek).websiteClicks} delta={wowDelta('websiteClicks')} />
-      </div>
 
       <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>도달 · 참여 추이</h3>
-            <div style={{ fontSize: 12, color: C.sub }}>{selectedWeek} 기준 최근 {displayWeeks.length}주</div>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>월간 매출 · 유입 · 도달 · 참여 추이 비교</h3>
+            <div style={{ fontSize: 12, color: C.sub }}>
+              {currentYear}년 전체 월별 데이터 · 첫 달 대비 지수(=100)로 정규화하여 스케일이 다른 지표를 한눈에 비교합니다. (툴팁에 실제 값 표시)
+            </div>
           </div>
-          <button onClick={() => setShowReachEngTable((v) => !v)} className="flex items-center gap-1.5"
-            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showReachEngTable ? C.ink : '#fff', color: showReachEngTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-            {showReachEngTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
+          <button onClick={() => setShowMonthlyTable((v) => !v)} className="flex items-center gap-1.5"
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyTable ? C.ink : '#fff', color: showMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>
+            {showMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
           </button>
         </div>
-        <div style={{ width: '100%', height: 240 }}>
+        <div style={{ width: '100%', height: 260 }}>
           <ResponsiveContainer>
-            <LineChart data={trendData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
+            <LineChart data={monthlyTrendNorm} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
               <Tooltip content={<ChartTooltip labels={labelsA} />} />
               <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsA[v] || v} />
-              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} dot={{ r: 3 }} label={{ position: 'top', fontSize: 10, fill: ACCOUNT_METRICS.reach.color, fontWeight: 700, formatter: fmtK }} />
-              <Line type="monotone" dataKey="organicReach" stroke={ACCOUNT_METRICS.organicReach.color} strokeWidth={2} strokeDasharray="4 3" dot={{ r: 2.5 }} />
-              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 3 }} label={{ position: 'top', fontSize: 10, fill: ACCOUNT_METRICS.engagement.color, fontWeight: 700, formatter: fmtK }} />
+              <Line type="monotone" dataKey="sales" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="inflow" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="reach" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="engagement" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        {showReachEngTable && (
+        {showMonthlyTable && (
           <div style={{ marginTop: 14, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 420 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                  {['주차', '도달', '오가닉 도달', '참여'].map((h) => (
-                    <th key={h} style={{ textAlign: h === '주차' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
+                  {['월', '매출', '유입', '도달수', '참여수'].map((h) => (
+                    <th key={h} style={{ textAlign: h === '월' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {displayWeeks.map((w, i) => (
-                  <tr key={w} style={{ borderBottom: `1px solid ${C.border}`, background: w === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
-                    <td style={{ padding: '7px 10px', fontWeight: w === selectedWeek ? 800 : 600, color: w === selectedWeek ? C.accent : C.ink }}>{w}{w === selectedWeek ? ' ★' : ''}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(totals(w).reach)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(totals(w).organicReach)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(totals(w).engagement)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
-          <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>신규 팔로우 · 프로필 방문 · 웹사이트 클릭 추이</h3>
-            <div style={{ fontSize: 12, color: C.sub }}>{selectedWeek} 기준 최근 {displayWeeks.length}주 · 첫 주 대비 지수(=100) · 툴팁에 실제값 표시</div>
-          </div>
-          <button onClick={() => setShowMetricsTable((v) => !v)} className="flex items-center gap-1.5"
-            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMetricsTable ? C.ink : '#fff', color: showMetricsTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-            {showMetricsTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-          </button>
-        </div>
-        <div style={{ width: '100%', height: 240 }}>
-          <ResponsiveContainer>
-            <LineChart data={secondaryTrendNorm} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-              <Tooltip content={renderSecondaryTooltip} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsA[v] || v} />
-              <Line type="monotone" dataKey="newFollowers" stroke={ACCOUNT_METRICS.newFollowers.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="profileVisits" stroke={ACCOUNT_METRICS.profileVisits.color} strokeWidth={2.5} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="websiteClicks" stroke={ACCOUNT_METRICS.websiteClicks.color} strokeWidth={2.5} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        {showMetricsTable && (
-          <div style={{ marginTop: 14, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 560 }}>
-              <thead>
-                <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                  {['주차','도달','참여','신규 팔로우','프로필 방문','웹사이트 클릭'].map((h) => (
-                    <th key={h} style={{ textAlign: h==='주차'?'left':'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayWeeks.map((w, i) => (
-                  <tr key={w} style={{ borderBottom: `1px solid ${C.border}`, background: w===selectedWeek ? `${C.accent}08` : i%2===0 ? C.bg : '#fff' }}>
-                    <td style={{ padding:'7px 10px', fontWeight: w===selectedWeek?800:600, color: w===selectedWeek?C.accent:C.ink }}>{w}{w===selectedWeek?' ★':''}</td>
-                    <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(totals(w).reach)}</td>
-                    <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(totals(w).engagement)}</td>
-                    <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(totals(w).newFollowers)}</td>
-                    <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(totals(w).profileVisits)}</td>
-                    <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(totals(w).websiteClicks)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <button onClick={() => setShowInputTable((v) => !v)} className="flex items-center gap-1" style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: C.sub, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          {showInputTable ? <ChevronUp size={14} /> : <ChevronDown size={14} />} 주간 데이터 입력 · 수정
-        </button>
-        {showInputTable && <div style={{ marginTop: 10 }}><AccountMetricsTable weekKeys={weekKeys} metrics={metrics} onChange={(w, k, v) => onAccountChange(countryKey, w, k, v)} /></div>}
-      </div>
-
-      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 2 }}>
-          <div className="flex items-center gap-1.5">
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주차별 릴스 발행 수 · 타율</h3>
-            <InfoTip text={baselineInfoText} />
-          </div>
-          <button onClick={() => setShowReelsTable((v) => !v)} className="flex items-center gap-1.5"
-            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showReelsTable ? C.ink : '#fff', color: showReelsTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-            {showReelsTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-          </button>
-        </div>
-        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>그래프는 최근 {displayWeeks.length}주 표시 (타율 기준선은 직전 {BASELINE_WEEKS}주 별도 산출) · 툴팁에 평균 도달 표시</div>
-        <div style={{ width: '100%', height: 210 }}>
-          <ResponsiveContainer>
-            <ComposedChart data={countryReelsWeekData} margin={{ top: 20, right: 40, left: -10, bottom: 0 }}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} unit="%" domain={[0, 100]} />
-              <Tooltip content={(props) => <ReelsTooltip {...props} allContents={allContents} countryKey={countryKey} />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => ({ reelCount: '릴스 발행 수', hitRate: '타율 (%)' }[v] || v)} />
-              <Bar yAxisId="left" dataKey="reelCount" fill={ACCOUNT_METRICS.views.color} radius={[4, 4, 0, 0]}>
-                <LabelList dataKey="reelCount" position="top" style={{ fontSize: 11, fontWeight: 700, fill: C.ink }} />
-              </Bar>
-              <Line yAxisId="right" type="monotone" dataKey="hitRate" stroke="#2E9E89" strokeWidth={2.5} dot={{ r: 4 }} label={{ position: 'top', fontSize: 10, fontWeight: 700, fill: '#2E9E89', formatter: (v) => v != null ? `${v}%` : '' }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-        {showReelsTable && (
-          <div style={{ marginTop: 14, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 380 }}>
-              <thead>
-                <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                  {['주차', '발행 수', '타율', '평균 도달'].map((h) => (
-                    <th key={h} style={{ textAlign: h === '주차' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {countryReelsWeekData.map((d, i) => (
-                  <tr key={d.week} style={{ borderBottom: `1px solid ${C.border}`, background: d.week === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
-                    <td style={{ padding: '7px 10px', fontWeight: d.week === selectedWeek ? 800 : 600, color: d.week === selectedWeek ? C.accent : C.ink }}>{d.week}{d.week === selectedWeek ? ' ★' : ''}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.reelCount}개</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hitRate != null ? `${d.hitRate}%` : '-'}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.avgReach)}</td>
+                {monthlyTrendNorm.map((d, i) => (
+                  <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmtMetric('sales', d._raw_sales)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_inflow)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_reach)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_engagement)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1422,71 +1121,11 @@ function CountryView({
         )}
       </div>
 
-      {(() => {
-        const [showProductTable, setShowProductTable] = useState(false);
-        const productChartData = displayWeeks.map((w) => {
-          const d = productSales[countryKey]?.[w] || {};
-          return { week: w, ...Object.fromEntries(PRODUCT_CATS.map((p) => [p.key, Number(d[p.key] || 0)])) };
-        });
-        return (
-          <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-            <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
-              <div>
-                <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>제품군별 판매건수 추이</h3>
-                <div style={{ fontSize: 12, color: C.sub }}>최근 {displayWeeks.length}주 · 주차별 판매건수</div>
-              </div>
-              <button onClick={() => setShowProductTable((v) => !v)} className="flex items-center gap-1.5"
-                style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showProductTable ? C.ink : '#fff', color: showProductTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-                {showProductTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-              </button>
-            </div>
-            <div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <LineChart data={productChartData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid stroke={C.border} vertical={false} />
-                  <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<ChartTooltip labels={Object.fromEntries(PRODUCT_CATS.map((p) => [p.key, p.label]))} />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => PRODUCT_CATS.find((p) => p.key === v)?.label || v} />
-                  {PRODUCT_CATS.map((p) => (
-                    <Line key={p.key} type="monotone" dataKey={p.key} stroke={p.color} strokeWidth={2.5} dot={{ r: 3 }}
-                      label={{ position: 'top', fontSize: 10, fontWeight: 700, fill: p.color, formatter: (v) => v > 0 ? fmtK(v) : '' }} />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {showProductTable && (
-              <div style={{ marginTop: 14, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 360 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                      <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>주차</th>
-                      {PRODUCT_CATS.map((p) => <th key={p.key} style={{ textAlign: 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: p.color }}>{p.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayWeeks.map((w, i) => {
-                      const d = productSales[countryKey]?.[w] || {};
-                      return (
-                        <tr key={w} style={{ borderBottom: `1px solid ${C.border}`, background: w === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
-                          <td style={{ padding: '7px 10px', fontWeight: w === selectedWeek ? 800 : 600, color: w === selectedWeek ? C.accent : C.ink }}>{w}{w === selectedWeek ? ' ★' : ''}</td>
-                          {PRODUCT_CATS.map((p) => <td key={p.key} style={{ padding: '7px 10px', textAlign: 'right', color: C.ink }}>{fmt(d[p.key] || 0)}</td>)}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      <div className="mb-8" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
+      <div className="mb-8" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, marginTop: 24 }}>
         <div className="flex items-center gap-2 mb-2">
           <NotebookPen size={16} color={C.accent} />
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>인사이트 · {selectedWeek}</h3>
-          <span style={{ fontSize: 11, color: C.sub, marginLeft: 'auto' }}>내용 입력 후 1초 뒤 자동 저장</span>
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>주간 전체 인사이트 · {selectedWeek}</h3>
+          <span style={{ fontSize: 11, color: C.sub, marginLeft: 'auto' }}>입력 후 1초 뒤 시트 자동 저장</span>
         </div>
         <TextAreaField
           value={countryInsights[countryKey]?.[selectedWeek] || ''}
@@ -1497,240 +1136,81 @@ function CountryView({
 
       <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🏆 상위 콘텐츠 (최대 5개)</h3>
-          <InfoTip text={baselineInfoText} />
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>🏆 상위 콘텐츠 (참여수 기준)</h3>
         </div>
-        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>직전 {BASELINE_WEEKS}주 평균 도달({fmt(Math.round(avgReach))}) 이상인 콘텐츠 중 도달 상위 5개</div>
-        <div className="flex flex-col gap-2.5">
-          {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-          {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, '상위')} avgReach={avgReach} />)}
+        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>직전 {BASELINE_WEEKS}주 평균 참여({fmt(Math.round(avgMetrics.engagement))}) 이상인 콘텐츠 중 상위 5개</div>
+        <div className="flex flex-col gap-2.5 mt-4">
+          {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>표시할 콘텐츠가 없습니다.</div>}
+          {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, '상위')} avgMetrics={avgMetrics} metricKey="engagement" />)}
         </div>
       </div>
 
       <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 4px' }}>📉 하위 콘텐츠 (최대 5개)</h3>
-        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>직전 {BASELINE_WEEKS}주 평균 도달({fmt(Math.round(avgReach))}) 미만인 콘텐츠 중 도달 하위 5개</div>
-        <div className="flex flex-col gap-2.5">
-          {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-          {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, '하위')} avgReach={avgReach} />)}
+        <div className="flex items-center gap-1.5" style={{ marginBottom: 4 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>📉 하위 콘텐츠 (참여수 기준)</h3>
+        </div>
+        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>직전 {BASELINE_WEEKS}주 평균 참여({fmt(Math.round(avgMetrics.engagement))}) 미만인 콘텐츠 중 하위 5개</div>
+        <div className="flex flex-col gap-2.5 mt-4">
+          {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>표시할 콘텐츠가 없습니다.</div>}
+          {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, '하위')} avgMetrics={avgMetrics} metricKey="engagement" />)}
         </div>
       </div>
-
-      {(() => {
-        const retroList = weekKeys.flatMap((w) => (allContents[countryKey]?.[w] || []).map((item) => { const growth = isRetroGrowth(item, weekKeys, selectedWeek); return growth !== null ? { item, week: w, growth } : null; }).filter(Boolean)).sort((a, b) => b.growth - a.growth);
-        return (
-          <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-            <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
-              <Rocket size={15} color={C.mint} />
-              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>역주행 / 성장 콘텐츠</h3>
-              <span style={{ fontSize: 12, color: C.sub, fontWeight: 600 }}>({retroList.length}건)</span>
-            </div>
-            <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>{selectedWeek} 기준 2주↑ 전 발행 · 초기 대비 성장률 +100%↑ · 최종 누적 도달 5,000↑</div>
-            {retroList.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 역주행/성장 콘텐츠가 없습니다.</div>
-              : <div className="flex flex-col gap-2.5">{retroList.map(({ item, week: w, growth }) => <div key={`retro-${item.id}`}><div style={{ fontSize: 11, fontWeight: 700, color: C.sub, marginBottom: 4 }}>{w} 발행 · 초기 {fmt(item.initialScore)} → 최종 {fmt(item.finalScore)}</div><ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking retroBadge={growth} onSyncInsight={(i) => handleSyncContent(i, '역주행')} avgReach={avgReach} /></div>)}</div>}
-          </div>
-        );
-      })()}
-
-      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <button onClick={() => setShowAllList((v) => !v)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>게시 전체 콘텐츠 리스트 · {selectedWeek} ({weekItems.length}건)</h3>
-          {showAllList ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}
-        </button>
-        {showAllList && (
-          <div style={{ marginTop: 12 }}>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <ImportSection week={selectedWeek} fields={ALL_IMPORT_FIELDS} guess={ALL_GUESS} mappingStorageKey={`dash2-all-mapping-${countryKey}`} buildItem={buildAllItem} onImport={importAllItems} />
-              <button onClick={addAllItem} className="flex items-center gap-1" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff', height: 36 }}><Plus size={14} /> 콘텐츠 추가</button>
-            </div>
-            <div className="flex flex-col gap-2.5">
-              {weekItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>{selectedWeek}에 등록된 콘텐츠가 없습니다.</div>}
-              {weekItems.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, '전체')} avgReach={avgReach} />)}
-            </div>
-          </div>
-        )}
-      </div>
-      </div>
-
-      {subView === 'product' && (() => {
-        const prod = PRODUCT_CATS.find((p) => p.key === selectedProduct) || PRODUCT_CATS[0];
-        const prodSalesNow = Number(productSales[countryKey]?.[selectedWeek]?.[selectedProduct] || 0);
-        const prodSalesPrev = prevWeek ? Number(productSales[countryKey]?.[prevWeek]?.[selectedProduct] || 0) : null;
-        const prodSalesDelta = prodSalesPrev != null && prodSalesPrev > 0 ? ((prodSalesNow - prodSalesPrev) / prodSalesPrev) * 100 : null;
-        const allWeekItems = Object.entries(allContents[countryKey] || {}).flatMap(([w, items]) => items.map((i) => ({ ...i, _week: w })));
-        const prodContentsNow = (allContents[countryKey]?.[selectedWeek] || []).filter((i) => i.productCategory === selectedProduct);
-        const prodContentsPrev = prevWeek ? (allContents[countryKey]?.[prevWeek] || []).filter((i) => i.productCategory === selectedProduct) : [];
-        const sumReach = (items) => items.reduce((s, i) => s + Number(i.reach || 0), 0);
-        const sumEng = (items) => items.reduce((s, i) => s + Number(i.likes || 0) + Number(i.comments || 0) + Number(i.saves || 0) + Number(i.shares || 0), 0);
-        const reachNow = sumReach(prodContentsNow); const reachPrev = sumReach(prodContentsPrev);
-        const reachDelta = reachPrev > 0 ? ((reachNow - reachPrev) / reachPrev) * 100 : null;
-        const engNow = sumEng(prodContentsNow); const engPrev = sumEng(prodContentsPrev);
-        const engDelta = engPrev > 0 ? ((engNow - engPrev) / engPrev) * 100 : null;
-        const weeklyData = displayWeeks.map((w) => ({ week: w, 구매건수: Number(productSales[countryKey]?.[w]?.[selectedProduct] || 0) }));
-        const monthGroupsProd = {};
-        weekMeta.forEach((w) => { const m = w.month || '기타'; if (!monthGroupsProd[m]) monthGroupsProd[m] = 0; monthGroupsProd[m] += Number(productSales[countryKey]?.[w.key]?.[selectedProduct] || 0); });
-        const dataYear = weekMeta.length ? (weekMeta[0].month || '2026-01').split('-')[0] : '2026';
-        const latestM = weekMeta.reduce((max, w) => (w.month && w.month > max ? w.month : max), '');
-        const monthlyDataProd = Array.from({ length: 12 }, (_, i) => `${dataYear}-${String(i + 1).padStart(2, '0')}`).filter((m) => m <= latestM).map((m) => ({ month: fmtMonth(m), 구매건수: monthGroupsProd[m] || 0 }));
-        const allProdContents = allWeekItems.filter((i) => i.productCategory === selectedProduct).sort((a, b) => Number(b.reach || 0) - Number(a.reach || 0));
-        return (
-          <div>
-            <div className="flex gap-2 mb-6 flex-wrap">
-              {PRODUCT_CATS.map((p) => (
-                <button key={p.key} onClick={() => setSelectedProduct(p.key)}
-                  style={{ padding: '7px 20px', borderRadius: 999, fontSize: 13, fontWeight: 800, border: `2px solid ${selectedProduct === p.key ? p.color : C.border}`, background: selectedProduct === p.key ? `${p.color}18` : '#fff', color: selectedProduct === p.key ? p.color : C.sub, cursor: 'pointer' }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: C.sub, marginBottom: 12, fontWeight: 700 }}>전주 대비 · {selectedWeek}</div>
-            <div className="flex flex-wrap gap-3 mb-7">
-              <HeroCard metricsMap={{ purchases: { label: `${prod.label} 구매건수`, icon: Target, color: prod.color } }} mkey="purchases" value={prodSalesNow} delta={prodSalesDelta} />
-              <HeroCard metricsMap={{ reach: { label: `${prod.label} 콘텐츠 도달`, icon: Eye, color: ACCOUNT_METRICS.reach.color } }} mkey="reach" value={reachNow} delta={reachDelta} />
-              <HeroCard metricsMap={{ engagement: { label: `${prod.label} 콘텐츠 참여`, icon: Activity, color: ACCOUNT_METRICS.engagement.color } }} mkey="engagement" value={engNow} delta={engDelta} />
-            </div>
-            <div className="mb-7" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-              <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 2 }}>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{prod.label} 구매건수 주간 추이</h3>
-                  <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>최근 {displayWeeks.length}주</div>
-                </div>
-                <button onClick={() => setShowProdWeeklyTable((v) => !v)} className="flex items-center gap-1.5"
-                  style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showProdWeeklyTable ? C.ink : '#fff', color: showProdWeeklyTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-                  {showProdWeeklyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-                </button>
-              </div>
-              <div style={{ width: '100%', height: 200 }}>
-                <ResponsiveContainer>
-                  <BarChart data={weeklyData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid stroke={C.border} vertical={false} />
-                    <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip content={<ChartTooltip labels={{ 구매건수: `${prod.label} 구매건수` }} />} />
-                    <Bar dataKey="구매건수" fill={prod.color} radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="구매건수" position="top" style={{ fontSize: 11, fontWeight: 700, fill: prod.color }} formatter={(v) => v > 0 ? fmt(v) : ''} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {showProdWeeklyTable && (
-                <div style={{ marginTop: 14, overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 240 }}>
-                    <thead>
-                      <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                        <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>주차</th>
-                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: prod.color }}>구매건수</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {weeklyData.map((d, i) => (
-                        <tr key={d.week} style={{ borderBottom: `1px solid ${C.border}`, background: d.week === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
-                          <td style={{ padding: '7px 10px', fontWeight: d.week === selectedWeek ? 800 : 600, color: d.week === selectedWeek ? C.accent : C.ink }}>{d.week}{d.week === selectedWeek ? ' ★' : ''}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.구매건수)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="mb-7" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-              <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 2 }}>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{prod.label} 구매건수 월간 추이</h3>
-                  <div style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>월별 누계</div>
-                </div>
-                <button onClick={() => setShowProdMonthlyTable((v) => !v)} className="flex items-center gap-1.5"
-                  style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showProdMonthlyTable ? C.ink : '#fff', color: showProdMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-                  {showProdMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-                </button>
-              </div>
-              <div style={{ width: '100%', height: 200 }}>
-                <ResponsiveContainer>
-                  <BarChart data={monthlyDataProd} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
-                    <CartesianGrid stroke={C.border} vertical={false} />
-                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip content={<ChartTooltip labels={{ 구매건수: `${prod.label} 구매건수` }} />} />
-                    <Bar dataKey="구매건수" fill={prod.color} radius={[4, 4, 0, 0]}>
-                      <LabelList dataKey="구매건수" position="top" style={{ fontSize: 11, fontWeight: 700, fill: prod.color }} formatter={(v) => v > 0 ? fmtK(v) : ''} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {showProdMonthlyTable && (
-                <div style={{ marginTop: 14, overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 240 }}>
-                    <thead>
-                      <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                        <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>월</th>
-                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: prod.color }}>구매건수</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthlyDataProd.map((d, i) => (
-                        <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
-                          <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
-                          <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.구매건수)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="mb-7">
-              <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-                <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{prod.label} 콘텐츠 성과</h3>
-                <span style={{ fontSize: 12, color: C.sub }}>총 {allProdContents.length}건 · 도달순</span>
-              </div>
-              {allProdContents.length === 0
-                ? <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '32px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>"{prod.label}"로 태그된 콘텐츠가 없습니다.<br />콘텐츠 카드 수정 모드에서 제품군을 지정해주세요.</div>
-                : <div className="flex flex-col gap-2.5">
-                    {allProdContents.map((item) => (
-                      <div key={`${item.id}-${item._week}`}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, marginBottom: 4 }}>{item._week} 발행</div>
-                        <ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} onSave={updateAllItem} onDelete={deleteAllItem} showSalesImpact showScoreTracking onSyncInsight={(i) => handleSyncContent(i, prod.label)} avgReach={avgReach} />
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
 
-// ============================================================
-// 피드 콘텐츠 뷰
-// ============================================================
-function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, onFeedContentsChange, accountMetrics, allContents, activeProjects, onProjectsChange, onSyncContent }) {
+function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, accountMetrics, onFeedContentsChange, onSyncContent }) {
   const [selectedCountry, setSelectedCountry] = useState('KR');
-  const [showArchive, setShowArchive] = useState(false);
-  const [showMonthly, setShowMonthly] = useState(false);
-  const [showFeedTable, setShowFeedTable] = useState(false);
-  const [showFollowerCompareTable, setShowFollowerCompareTable] = useState(false);
-  const [showMonthlyMetricsTable, setShowMonthlyMetricsTable] = useState(false);
-  const [showMonthlyGrowthTable, setShowMonthlyGrowthTable] = useState(false);
-  const weekKeys = weekMeta.map((w) => w.key);
   const countryContents = feedContents[selectedCountry] || {};
   const weekContents = countryContents[selectedWeek] || [];
+  const [showFeedMonthlyTable, setShowFeedMonthlyTable] = useState(false);
+  const [showFollowerCompareTable, setShowFollowerCompareTable] = useState(false);
+
   const weeklyTotals = (country, week) => {
     const list = feedContents[country]?.[week] || [];
     return { saves: list.reduce((s, c) => s + Number(c.saves || 0), 0), shares: list.reduce((s, c) => s + Number(c.shares || 0), 0), profileActivity: list.reduce((s, c) => s + Number(c.profileActivity || 0), 0), newFollowers: list.reduce((s, c) => s + Number(c.follows || 0), 0) };
   };
-  const prevIdx = weekKeys.indexOf(selectedWeek) - 1;
-  const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null;
-  const heroDelta = (k) => { const cur = weeklyTotals(selectedCountry, selectedWeek)[k]; if (!prevWeek) return null; const prev = weeklyTotals(selectedCountry, prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
-  const trendChartData = displayWeeks.map((w) => ({ week: w, ...weeklyTotals(selectedCountry, w) }));
 
-  // 피드 발생 신규 팔로우 vs 계정 전체 신규 팔로우(주간) 비교
+  // 피드 월간 추이 차트 (저장수, 공유수, 프로필 활동)
+  const latestMonthStr = weekMeta[weekMeta.length - 1]?.month || '2026-06';
+  const currentYear = latestMonthStr.split('-')[0];
+  const latestMonthNum = parseInt(latestMonthStr.split('-')[1], 10);
+  const monthList = Array.from({length: latestMonthNum}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
+
+  const monthlyData = monthList.map(m => {
+      const wks = weekMeta.filter(w => w.month === m).map(w => w.key);
+      const data = { month: m, saves: 0, shares: 0, profileActivity: 0 };
+      wks.forEach(wk => {
+          const t = weeklyTotals(selectedCountry, wk);
+          data.saves += t.saves;
+          data.shares += t.shares;
+          data.profileActivity += t.profileActivity;
+      });
+      return data;
+  });
+
+  const mBase = {
+      saves: monthlyData.find(d => d.saves > 0)?.saves || 1,
+      shares: monthlyData.find(d => d.shares > 0)?.shares || 1,
+      profileActivity: monthlyData.find(d => d.profileActivity > 0)?.profileActivity || 1,
+  };
+
+  const monthlyTrendNorm = monthlyData.map(d => ({
+      month: fmtMonth(d.month),
+      saves: Math.round((d.saves / mBase.saves) * 100),
+      shares: Math.round((d.shares / mBase.shares) * 100),
+      profileActivity: Math.round((d.profileActivity / mBase.profileActivity) * 100),
+      _raw_saves: d.saves,
+      _raw_shares: d.shares,
+      _raw_profileActivity: d.profileActivity,
+  }));
+  const feedLabels = { saves: '피드 저장수', shares: '피드 공유수', profileActivity: '피드 프로필 활동' };
+
+  // 신규 팔로워 증감률 차트 데이터
   const accountNewFollowersAt = (w) => Number(accountMetrics?.[selectedCountry]?.[w]?.newFollowers || 0);
   const accountFollowerCompare = displayWeeks.map((w) => {
-    const idx = weekKeys.indexOf(w);
-    const prevKey = idx > 0 ? weekKeys[idx - 1] : null;
+    const idx = weekMeta.map(wm => wm.key).indexOf(w);
+    const prevKey = idx > 0 ? weekMeta[idx - 1].key : null;
     const accountNow = accountNewFollowersAt(w);
     const accountPrev = prevKey ? accountNewFollowersAt(prevKey) : null;
     const accountGrowthRate = accountPrev ? Number((((accountNow - accountPrev) / accountPrev) * 100).toFixed(1)) : (accountPrev === 0 ? 0 : null);
@@ -1739,289 +1219,140 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, onFeedCo
     const feedGrowthRate = feedPrev ? Number((((feedNow - feedPrev) / feedPrev) * 100).toFixed(1)) : (feedPrev === 0 ? 0 : null);
     return { week: w, feedFollows: feedNow, accountNewFollowers: accountNow, accountGrowthRate, feedGrowthRate, hasPrevAccount: accountPrev != null, hasPrevFeed: feedPrev != null };
   });
-  const feedFollowsNow = weeklyTotals(selectedCountry, selectedWeek).newFollowers;
-  const feedFollowsPrev = prevWeek ? weeklyTotals(selectedCountry, prevWeek).newFollowers : null;
-  const feedFollowsDelta = feedFollowsPrev ? ((feedFollowsNow - feedFollowsPrev) / feedFollowsPrev) * 100 : null;
-  const accountNewFollowersNow = accountNewFollowersAt(selectedWeek);
-  const accountNewFollowersPrev = prevWeek ? accountNewFollowersAt(prevWeek) : null;
-  const accountNewFollowersDelta = accountNewFollowersPrev ? ((accountNewFollowersNow - accountNewFollowersPrev) / accountNewFollowersPrev) * 100 : null;
-  const feedShareOfAccount = accountNewFollowersNow > 0 ? Math.round((feedFollowsNow / accountNewFollowersNow) * 100) : null;
-  const monthOrder = []; const monthGroups = {};
-  weekMeta.forEach((w) => { const m = w.month || '기타'; if (!monthGroups[m]) { monthGroups[m] = { saves: 0, shares: 0, profileActivity: 0, newFollowers: 0 }; monthOrder.push(m); } const t = weeklyTotals(selectedCountry, w.key); monthGroups[m].saves += t.saves; monthGroups[m].shares += t.shares; monthGroups[m].profileActivity += t.profileActivity; monthGroups[m].newFollowers += t.newFollowers; });
-  const monthlyChartData = monthOrder.map((m) => ({ month: fmtMonth(m), ...monthGroups[m] }));
-  const monthlyGrowthData = monthOrder.map((m, i) => { const cur = monthGroups[m].newFollowers; const prev = i > 0 ? monthGroups[monthOrder[i - 1]].newFollowers : null; const rate = prev ? ((cur - prev) / prev) * 100 : 0; return { month: fmtMonth(m), rate, hasPrev: !!prev }; });
-  const insightArchive = [];
-  COUNTRIES.forEach((c) => { weekKeys.forEach((w) => { (feedContents[c.key]?.[w] || []).forEach((item) => { if (item.analysis && item.analysis.trim()) insightArchive.push({ country: c.label, week: w, title: item.title, link: item.link, insight: item.analysis }); }); }); });
-  insightArchive.reverse();
+
   const updateContent = (item) => {
     const list = weekContents.map((c) => (c.id === item.id ? item : c));
     onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: list } });
   };
+  const deleteContent = (id) => { const list = weekContents.filter((c) => c.id !== id); onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: list } }); };
+  const addContent = () => { const allIds = Object.values(feedContents).flatMap((byWeek) => Object.values(byWeek).flat()).map((c) => c.id); const newId = (allIds.length ? Math.max(...allIds) : 0) + 1; const list = [...weekContents, blankItem(newId, '새 콘텐츠', FEED_KEYS)]; onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: list } }); };
   const handleSyncFeedContent = (item) => {
     if (onSyncContent && (item.hypothesis || item.analysis || item.salesImpact)) {
       onSyncContent({ type: 'content', country: selectedCountry, week: selectedWeek, category: '피드', url: item.link, title: item.title, hypothesis: item.hypothesis, analysis: item.analysis, salesImpact: item.salesImpact });
     }
   };
-  const deleteContent = (id) => { const list = weekContents.filter((c) => c.id !== id); onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: list } }); };
-  const addContent = () => { const allIds = Object.values(feedContents).flatMap((byWeek) => Object.values(byWeek).flat()).map((c) => c.id); const newId = (allIds.length ? Math.max(...allIds) : 0) + 1; const list = [...weekContents, blankItem(newId, '새 콘텐츠', FEED_KEYS)]; onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: list } }); };
-  const importItems = (newList) => { const existingByLink = {}; weekContents.forEach((c) => { if (c.link) existingByLink[c.link] = c; }); const allIds = Object.values(feedContents).flatMap((byWeek) => Object.values(byWeek).flat()).map((c) => c.id); let nextId = (allIds.length ? Math.max(...allIds) : 0) + 1; const built = newList.map((item) => { const existing = item.link ? existingByLink[item.link] : null; return { ...item, id: existing?.id ?? nextId++, hypothesis: existing?.hypothesis || '', analysis: existing?.analysis || '', salesImpact: existing?.salesImpact || '', profileActivity: existing?.profileActivity || 0, regrams: existing?.regrams || 0 }; }); onFeedContentsChange({ ...feedContents, [selectedCountry]: { ...countryContents, [selectedWeek]: built } }); };
-  const buildFeedItem = (row, mapping) => { const link = mapping.link ? row[mapping.link] : ''; const item = { id: 0, title: mapping.title ? row[mapping.title] : '', link, hypothesis: '', analysis: '', salesImpact: '', profileActivity: 0, regrams: 0 }; ['reach', 'follows', 'likes', 'saves', 'shares', 'comments'].forEach((k) => { item[k] = mapping[k] ? numFrom(row[mapping[k]]) : 0; }); return item; };
-  const labelsF = metricLabels(FEED_METRICS);
 
   return (
     <div>
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>피드 콘텐츠 주간 성과 리포트</h2>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>피드 콘텐츠 · {selectedWeek}</h2>
         <div className="flex gap-1.5">
           {COUNTRIES.map((c) => <button key={c.key} onClick={() => setSelectedCountry(c.key)} style={{ padding: '5px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: `1px solid ${c.key === selectedCountry ? C.ink : C.border}`, background: c.key === selectedCountry ? C.ink : '#fff', color: c.key === selectedCountry ? '#fff' : C.sub }}>{c.label}</button>)}
         </div>
       </div>
-      <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>{selectedWeek} · {COUNTRIES.find((c) => c.key === selectedCountry)?.label} · 피드(캐러셀/포토)만 집계</div>
-      <SectionLabel color={FEED_METRICS.profileActivity.color}>피드 핵심 지표</SectionLabel>
-      <div className="flex flex-wrap gap-3 mb-7">
-        {FEED_CORE.map((k) => <HeroCard key={k} metricsMap={FEED_METRICS} mkey={k} value={weeklyTotals(selectedCountry, selectedWeek)[k]} delta={heroDelta(k)} />)}
-      </div>
-      <div className="mb-8">
-        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>콘텐츠별 성과 · {selectedWeek}</h3>
-          <div className="flex gap-2">
-            <ImportSection week={selectedWeek} fields={FEED_IMPORT_FIELDS} guess={FEED_GUESS} mappingStorageKey={`dash2-feed-mapping-${selectedCountry}`} buildItem={buildFeedItem} onImport={importItems} />
-            <button onClick={addContent} className="flex items-center gap-1" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff', height: 36 }}><Plus size={14} /> 콘텐츠 추가</button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          {weekContents.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '24px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>{COUNTRIES.find((c) => c.key === selectedCountry)?.label} {selectedWeek}에 등록된 피드 콘텐츠가 없습니다.</div>}
-          {weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} onSave={updateContent} onDelete={deleteContent} onSyncInsight={handleSyncFeedContent} showThumbnailUpload />)}
-        </div>
-      </div>
+
       <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
         <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>피드 콘텐츠 전체 성과 추이</h3>
-            <div style={{ fontSize: 12, color: C.sub }}>{selectedWeek} 기준 최근 {displayWeeks.length}주</div>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: '0 0 2px' }}>피드 월간 지표 추이 (저장·공유·프로필 활동)</h3>
+            <div style={{ fontSize: 12, color: C.sub }}>
+              {currentYear}년 전체 월별 데이터 · 첫 달 대비 지수(=100)로 정규화하여 스케일이 다른 지표를 한눈에 비교합니다.
+            </div>
           </div>
-          <button onClick={() => setShowFeedTable((v) => !v)} className="flex items-center gap-1.5"
-            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showFeedTable ? C.ink : '#fff', color: showFeedTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-            {showFeedTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
+          <button onClick={() => setShowFeedMonthlyTable((v) => !v)} className="flex items-center gap-1.5"
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showFeedMonthlyTable ? C.ink : '#fff', color: showFeedMonthlyTable ? '#fff' : C.sub, cursor: 'pointer' }}>
+            {showFeedMonthlyTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
           </button>
         </div>
-        <div style={{ width: '100%', height: 250 }}>
+        <div style={{ width: '100%', height: 260 }}>
           <ResponsiveContainer>
-            <LineChart data={trendChartData} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
+            <LineChart data={monthlyTrendNorm} margin={{ top: 18, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip labels={labelsF} />} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsF[v] || v} />
-              <Line type="monotone" dataKey="saves" stroke={FEED_METRICS.saves.color} strokeWidth={2.5} dot={{ r: 3 }} label={{ position: 'top', fontSize: 10, fill: FEED_METRICS.saves.color, fontWeight: 700, formatter: fmtK }} />
-              <Line type="monotone" dataKey="shares" stroke={FEED_METRICS.shares.color} strokeWidth={2.5} dot={{ r: 3 }} label={{ position: 'top', fontSize: 10, fill: FEED_METRICS.shares.color, fontWeight: 700, formatter: fmtK }} />
-              <Line type="monotone" dataKey="profileActivity" stroke={FEED_METRICS.profileActivity.color} strokeWidth={2.5} dot={{ r: 3 }} label={{ position: 'top', fontSize: 10, fill: FEED_METRICS.profileActivity.color, fontWeight: 700, formatter: fmtK }} />
+              <Tooltip content={<ChartTooltip labels={feedLabels} />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => feedLabels[v] || v} />
+              <Line type="monotone" dataKey="saves" stroke={FEED_METRICS.saves.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="shares" stroke={FEED_METRICS.shares.color} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="profileActivity" stroke={FEED_METRICS.profileActivity.color} strokeWidth={2.5} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        {showFeedTable && (
+        {showFeedMonthlyTable && (
           <div style={{ marginTop: 14, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 420 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                  {['주차', '저장', '공유', '프로필 활동'].map((h) => (
-                    <th key={h} style={{ textAlign: h==='주차'?'left':'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
+                  {['월', '피드 저장수', '피드 공유수', '피드 프로필 활동'].map((h) => (
+                    <th key={h} style={{ textAlign: h === '월' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {displayWeeks.map((w, i) => {
-                  const t = trendChartData.find((d) => d.week === w) || {};
-                  return (
-                    <tr key={w} style={{ borderBottom: `1px solid ${C.border}`, background: w===selectedWeek ? `${C.accent}08` : i%2===0 ? C.bg : '#fff' }}>
-                      <td style={{ padding:'7px 10px', fontWeight: w===selectedWeek?800:600, color: w===selectedWeek?C.accent:C.ink }}>{w}{w===selectedWeek?' ★':''}</td>
-                      <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(t.saves)}</td>
-                      <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(t.shares)}</td>
-                      <td style={{ padding:'7px 10px', textAlign:'right' }}>{fmt(t.profileActivity)}</td>
-                    </tr>
-                  );
-                })}
+                {monthlyTrendNorm.map((d, i) => (
+                  <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_saves)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_shares)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d._raw_profileActivity)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
-      <div className="mb-8">
-        <SectionLabel color={ACCOUNT_METRICS.newFollowers.color}>팔로워 현황 비교</SectionLabel>
-        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12, marginTop: -6 }}>피드 콘텐츠로 발생한 신규 팔로우와 계정 전체 주간 신규 팔로우를 함께 비교합니다.</div>
-        <div className="flex flex-wrap gap-3 mb-4">
-          <HeroCard metricsMap={{ feedFollows: { label: '피드 발생 신규 팔로우', icon: UserPlus, color: FEED_METRICS.profileActivity.color } }} mkey="feedFollows" value={feedFollowsNow} delta={feedFollowsDelta} />
-          <HeroCard metricsMap={{ accountNewFollowers: { label: '계정 전체 신규 팔로우', icon: UserCheck, color: ACCOUNT_METRICS.newFollowers.color } }} mkey="accountNewFollowers" value={accountNewFollowersNow} delta={accountNewFollowersDelta}
-            sub={feedShareOfAccount != null && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>피드 비중 {feedShareOfAccount}%</span>
-            )} />
+      
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW, marginBottom: 24 }}>
+        <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
+          <div className="flex items-center gap-2">
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: C.ink, margin: 0 }}>주차별 피드 발생 팔로우 · 계정 전체 신규 팔로우 증감률</h3>
+            <InfoTip text="피드 콘텐츠만의 합계가 아닌 계정 전체 신규 팔로워 증감률 현황입니다." />
+          </div>
+          <button onClick={() => setShowFollowerCompareTable((v) => !v)} className="flex items-center gap-1.5"
+            style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showFollowerCompareTable ? C.ink : '#fff', color: showFollowerCompareTable ? '#fff' : C.sub, cursor: 'pointer' }}>
+            {showFollowerCompareTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
+          </button>
         </div>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-          <div className="flex items-center justify-between flex-wrap gap-2" style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>주차별 피드 발생 팔로우 · 계정 전체 신규 팔로우 증감률</div>
-            <button onClick={() => setShowFollowerCompareTable((v) => !v)} className="flex items-center gap-1.5"
-              style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: showFollowerCompareTable ? C.ink : '#fff', color: showFollowerCompareTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-              {showFollowerCompareTable ? <ChevronUp size={13} /> : <ChevronDown size={13} />} 데이터표
-            </button>
-          </div>
-          <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>막대: 피드 발생 신규 팔로우 수(좌축) · 선: 계정 전체 신규 팔로우 전주 대비 증감률(우축, %)</div>
-          <div style={{ width: '100%', height: 220 }}>
-            <ResponsiveContainer>
-              <ComposedChart data={accountFollowerCompare} margin={{ top: 18, right: 30, left: -10, bottom: 0 }}>
-                <CartesianGrid stroke={C.border} vertical={false} />
-                <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} unit="%" />
-                <Tooltip content={<ChartTooltip labels={{ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률' }} />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => ({ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률(%)' }[v] || v)} />
-                <Bar yAxisId="left" dataKey="feedFollows" fill={FEED_METRICS.profileActivity.color} radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="feedFollows" position="top" style={{ fontSize: 10, fontWeight: 700, fill: FEED_METRICS.profileActivity.color }} />
-                </Bar>
-                <Line yAxisId="right" type="monotone" dataKey="accountGrowthRate" stroke={ACCOUNT_METRICS.newFollowers.color} strokeWidth={2.5} dot={{ r: 4 }} connectNulls
-                  label={{ position: 'top', fontSize: 10, fontWeight: 700, fill: ACCOUNT_METRICS.newFollowers.color, formatter: (v) => v != null ? `${v}%` : '' }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          {showFollowerCompareTable && (
-            <div style={{ marginTop: 14, overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
-                <thead>
-                  <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                    {['주차', '피드 발생 팔로우', '피드 증감률', '계정 신규 팔로우', '계정 증감률'].map((h) => (
-                      <th key={h} style={{ textAlign: h === '주차' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {accountFollowerCompare.map((d, i) => (
-                    <tr key={d.week} style={{ borderBottom: `1px solid ${C.border}`, background: d.week === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
-                      <td style={{ padding: '7px 10px', fontWeight: d.week === selectedWeek ? 800 : 600, color: d.week === selectedWeek ? C.accent : C.ink }}>{d.week}{d.week === selectedWeek ? ' ★' : ''}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.feedFollows)}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hasPrevFeed ? `${d.feedGrowthRate}%` : '-'}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.accountNewFollowers)}</td>
-                      <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hasPrevAccount ? `${d.accountGrowthRate}%` : '-'}</td>
-                    </tr>
+        <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>막대: 피드 발생 신규 팔로우 수(좌축) · 선: 계정 전체 신규 팔로우 전주 대비 증감률(우축, %)</div>
+        <div style={{ width: '100%', height: 220 }}>
+          <ResponsiveContainer>
+            <ComposedChart data={accountFollowerCompare} margin={{ top: 18, right: 30, left: -10, bottom: 0 }}>
+              <CartesianGrid stroke={C.border} vertical={false} />
+              <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
+              <YAxis yAxisId="left" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} unit="%" />
+              <Tooltip content={<ChartTooltip labels={{ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률' }} />} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => ({ feedFollows: '피드 발생 팔로우', accountGrowthRate: '계정 신규 팔로우 증감률(%)' }[v] || v)} />
+              <Bar yAxisId="left" dataKey="feedFollows" fill={FEED_METRICS.profileActivity.color} radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="feedFollows" position="top" style={{ fontSize: 10, fontWeight: 700, fill: FEED_METRICS.profileActivity.color }} />
+              </Bar>
+              <Line yAxisId="right" type="monotone" dataKey="accountGrowthRate" stroke={ACCOUNT_METRICS.newFollowers.color} strokeWidth={2.5} dot={{ r: 4 }} connectNulls
+                label={{ position: 'top', fontSize: 10, fontWeight: 700, fill: ACCOUNT_METRICS.newFollowers.color, formatter: (v) => v != null ? `${v}%` : '' }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        {showFollowerCompareTable && (
+          <div style={{ marginTop: 14, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 520 }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${C.border}` }}>
+                  {['주차', '피드 발생 팔로우', '피드 증감률', '계정 신규 팔로우', '계정 증감률'].map((h) => (
+                    <th key={h} style={{ textAlign: h === '주차' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
                   ))}
-                </tbody>
-              </table>
-              <div style={{ fontSize: 11, color: C.sub, marginTop: 8 }}>피드 증감률은 발행 수가 적은 주에 변동폭이 크게 보일 수 있어요.</div>
-            </div>
-          )}
-        </div>
+                </tr>
+              </thead>
+              <tbody>
+                {accountFollowerCompare.map((d, i) => (
+                  <tr key={d.week} style={{ borderBottom: `1px solid ${C.border}`, background: d.week === selectedWeek ? `${C.accent}08` : i % 2 === 0 ? C.bg : '#fff' }}>
+                    <td style={{ padding: '7px 10px', fontWeight: d.week === selectedWeek ? 800 : 600, color: d.week === selectedWeek ? C.accent : C.ink }}>{d.week}{d.week === selectedWeek ? ' ★' : ''}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.feedFollows)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hasPrevFeed ? `${d.feedGrowthRate}%` : '-'}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.accountNewFollowers)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hasPrevAccount ? `${d.accountGrowthRate}%` : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-        <button onClick={() => setShowMonthly((v) => !v)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>월간 현황 · {COUNTRIES.find((c) => c.key === selectedCountry)?.label}</h3>
-          {showMonthly ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}
-        </button>
-        {showMonthly && (
-          <>
-            <div className="flex items-center justify-between flex-wrap gap-2" style={{ margin: '16px 0 8px' }}>
-              <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>월별 핵심지표 합계</div>
-              <button onClick={() => setShowMonthlyMetricsTable((v) => !v)} className="flex items-center gap-1.5"
-                style={{ fontSize: 12, fontWeight: 700, padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyMetricsTable ? C.ink : '#fff', color: showMonthlyMetricsTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-                {showMonthlyMetricsTable ? <ChevronUp size={12} /> : <ChevronDown size={12} />} 데이터표
-              </button>
-            </div>
-            <div style={{ width: '100%', height: 220 }}>
-              <ResponsiveContainer>
-                <LineChart data={monthlyChartData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid stroke={C.border} vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ChartTooltip labels={labelsF} />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} formatter={(v) => labelsF[v] || v} />
-                  <Line type="monotone" dataKey="saves" stroke={FEED_METRICS.saves.color} strokeWidth={2.5} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="shares" stroke={FEED_METRICS.shares.color} strokeWidth={2.5} dot={{ r: 3 }} />
-                  <Line type="monotone" dataKey="profileActivity" stroke={FEED_METRICS.profileActivity.color} strokeWidth={2.5} dot={{ r: 3 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            {showMonthlyMetricsTable && (
-              <div style={{ marginTop: 12, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 380 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                      {['월', '저장', '공유', '프로필 활동'].map((h) => (
-                        <th key={h} style={{ textAlign: h === '월' ? 'left' : 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyChartData.map((d, i) => (
-                      <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
-                        <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.saves)}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.shares)}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'right' }}>{fmt(d.profileActivity)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <div className="flex items-center justify-between flex-wrap gap-2" style={{ margin: '20px 0 8px' }}>
-              <div style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>월별 신규 팔로우 증감률 (%)</div>
-              <button onClick={() => setShowMonthlyGrowthTable((v) => !v)} className="flex items-center gap-1.5"
-                style={{ fontSize: 12, fontWeight: 700, padding: '5px 10px', borderRadius: 8, border: `1px solid ${C.border}`, background: showMonthlyGrowthTable ? C.ink : '#fff', color: showMonthlyGrowthTable ? '#fff' : C.sub, cursor: 'pointer' }}>
-                {showMonthlyGrowthTable ? <ChevronUp size={12} /> : <ChevronDown size={12} />} 데이터표
-              </button>
-            </div>
-            <div style={{ width: '100%', height: 180 }}>
-              <ResponsiveContainer>
-                <BarChart data={monthlyGrowthData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid stroke={C.border} vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: C.sub }} axisLine={{ stroke: C.border }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} unit="%" />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="rate" radius={[6, 6, 0, 0]}>{monthlyGrowthData.map((d, i) => <Cell key={i} fill={!d.hasPrev ? C.border : d.rate >= 0 ? C.mint : C.accent} />)}</Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            {showMonthlyGrowthTable && (
-              <div style={{ marginTop: 12, overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 240 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-                      <th style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>월</th>
-                      <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: 11, fontWeight: 700, color: C.sub }}>전월 대비</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthlyGrowthData.map((d, i) => (
-                      <tr key={d.month} style={{ borderBottom: `1px solid ${C.border}`, background: i % 2 === 0 ? C.bg : '#fff' }}>
-                        <td style={{ padding: '7px 10px', fontWeight: 700, color: C.ink }}>{d.month}</td>
-                        <td style={{ padding: '7px 10px', textAlign: 'right' }}>{d.hasPrev ? `${d.rate.toFixed(1)}%` : '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-      <div className="mb-8" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18 }}>
-        <button onClick={() => setShowArchive((v) => !v)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          <span className="flex items-center gap-2"><BookOpen size={16} color={C.accent} /><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>분석 아카이브</h3><span style={{ fontSize: 12, color: C.sub, fontWeight: 600 }}>({insightArchive.length}건)</span></span>
-          {showArchive ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}
-        </button>
-        <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>콘텐츠 카드에서 작성한 [분석 & 추후 방안] 내용이 국가·주차와 함께 모두 누적됩니다.</div>
-        {showArchive && (
-          <div className="flex flex-col gap-2" style={{ marginTop: 12 }}>
-            {insightArchive.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>아직 기록된 인사이트가 없습니다.</div>}
-            {insightArchive.map((entry, i) => (
-              <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', background: '#fff' }}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.sub, border: `1px solid ${C.border}`, borderRadius: 999, padding: '1px 8px' }}>{entry.country} · {entry.week}</span>
-                  <a href={entry.link || undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1" style={{ fontSize: 13, fontWeight: 700, color: C.ink, textDecoration: 'none' }}>{entry.title || '(제목 없음)'}{entry.link && <ExternalLink size={11} color={C.sub} />}</a>
-                </div>
-                <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{entry.insight}</div>
-              </div>
-            ))}
-          </div>
-        )}
+      <button onClick={addContent} className="flex items-center gap-1 mb-4" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff' }}><Plus size={14} /> 피드 콘텐츠 추가</button>
+      
+      <div className="flex flex-col gap-2.5">
+        {weekContents.length === 0 && <div style={{ textAlign: 'center', color: C.sub, fontSize: 13, padding: '24px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 피드 콘텐츠가 없습니다.</div>}
+        {weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} onSave={updateContent} onDelete={deleteContent} onSyncInsight={handleSyncFeedContent} showThumbnailUpload />)}
       </div>
     </div>
   );
@@ -2030,7 +1361,7 @@ function FeedView({ weekMeta, selectedWeek, displayWeeks, feedContents, onFeedCo
 // ============================================================
 // 메인 앱
 // ============================================================
-export default function Dashboard() {
+export default function App() {
   const [view, setView] = useState('summary');
   const [weekMeta, setWeekMeta] = useState(initialWeekMeta);
   const [selectedWeek, setSelectedWeek] = useState('W24');
@@ -2038,23 +1369,18 @@ export default function Dashboard() {
   const [allContents, setAllContents] = useState(initialAllContents);
   const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [countryInsights, setCountryInsights] = useState(initialCountryInsights);
-  const [activeProjects, setActiveProjects] = useState(initialActiveProjects);
   const [productSales, setProductSales] = useState(initialProductSales);
+  
   const [loading, setLoading] = useState(true);
-  const [saveError, setSaveError] = useState(false);
-  const [showAddWeek, setShowAddWeek] = useState(false);
-  const [newWeekKey, setNewWeekKey] = useState('');
-  const [newWeekMonth, setNewWeekMonth] = useState('');
-
-  // ── GAS 연동 상태 ─────────────────────────────────────────
   const [gasUrl, setGasUrl] = useState('');
   const [gasInput, setGasInput] = useState('');
   const [showGasPanel, setShowGasPanel] = useState(false);
   const [syncStatus, setSyncStatus] = useState('idle');
   const insightSyncTimer = useRef(null);
 
+  // 시트 저장용 (POST)
   const syncToGAS = useCallback(async (payload) => {
-    if (!gasUrl) return;
+    if (!gasUrl || !gasUrl.startsWith('http')) return;
     setSyncStatus('syncing');
     try {
       await fetch(gasUrl, {
@@ -2071,115 +1397,84 @@ export default function Dashboard() {
     }
   }, [gasUrl]);
 
+  // 화면 초기화 및 시트 연동 (GET)
   useEffect(() => {
     (async () => {
       try {
-        const [w, f, a, am, ci, ap, ps, gasR] = await Promise.all([
-          window.storage.get(STORAGE_WEEKS_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_FEED_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_ALL_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_ACCOUNT_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_INSIGHTS_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_PROJECTS_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_PRODUCT_KEY, true).catch(() => null),
-          window.storage.get(STORAGE_GAS_URL_KEY, true).catch(() => null),
-        ]);
-        let meta = initialWeekMeta;
-        if (w?.value) { meta = JSON.parse(w.value); setWeekMeta(meta); } else await window.storage.set(STORAGE_WEEKS_KEY, JSON.stringify(initialWeekMeta), true);
-        if (f?.value) setFeedContents(JSON.parse(f.value)); else await window.storage.set(STORAGE_FEED_KEY, JSON.stringify(initialFeedContents), true);
-        if (a?.value) setAllContents(JSON.parse(a.value)); else await window.storage.set(STORAGE_ALL_KEY, JSON.stringify(initialAllContents), true);
-        if (am?.value) setAccountMetrics(JSON.parse(am.value)); else await window.storage.set(STORAGE_ACCOUNT_KEY, JSON.stringify(initialAccountMetrics), true);
-        if (ci?.value) setCountryInsights(JSON.parse(ci.value)); else await window.storage.set(STORAGE_INSIGHTS_KEY, JSON.stringify(initialCountryInsights), true);
-        if (ap?.value) setActiveProjects(JSON.parse(ap.value)); else await window.storage.set(STORAGE_PROJECTS_KEY, JSON.stringify(initialActiveProjects), true);
-        if (ps?.value) setProductSales(JSON.parse(ps.value)); else await window.storage.set(STORAGE_PRODUCT_KEY, JSON.stringify(initialProductSales), true);
-        if (gasR?.value) { setGasUrl(gasR.value); setGasInput(gasR.value); }
-        if (meta.length) setSelectedWeek(meta[meta.length - 1].key);
-      } catch (e) { console.error('load error', e); } finally { setLoading(false); }
-    })();
-  }, []);
+        const gasR = await window.storage?.get(STORAGE_GAS_URL_KEY, true).catch(() => null);
+        const currentGasUrl = gasR?.value || ''; 
+        
+        setGasUrl(currentGasUrl);
+        setGasInput(currentGasUrl);
 
-  const persist = useCallback(async (key, value, setter) => {
-    setter(value);
-    try { await window.storage.set(key, JSON.stringify(value), true); setSaveError(false); } catch (e) { setSaveError(true); }
+        if (currentGasUrl && currentGasUrl.startsWith('http')) {
+          const res = await fetch(currentGasUrl + '?type=all');
+          const data = await res.json();
+          if (data.ok) {
+            if (data.weekMeta && data.weekMeta.length > 0) {
+              setWeekMeta(data.weekMeta);
+              setSelectedWeek(data.weekMeta[data.weekMeta.length - 1].key);
+            }
+            if (data.accountMetrics) setAccountMetrics(data.accountMetrics);
+            if (data.allContents) setAllContents(data.allContents);
+            if (data.feedContents) setFeedContents(data.feedContents);
+            if (data.productSales) setProductSales(data.productSales);
+            if (data.countryInsights) setCountryInsights(data.countryInsights); 
+          }
+        }
+      } catch (e) {
+        console.error('load error', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const saveGasUrl = async () => {
     const url = gasInput.trim();
     setGasUrl(url);
-    try { await window.storage.set(STORAGE_GAS_URL_KEY, url, true); } catch (e) {}
+    try { await window.storage?.set(STORAGE_GAS_URL_KEY, url, true); } catch (e) {}
     setShowGasPanel(false);
+    window.location.reload(); 
   };
 
   const onInsightChange = useCallback((country, week, value) => {
     const next = { ...countryInsights, [country]: { ...countryInsights[country], [week]: value } };
-    persist(STORAGE_INSIGHTS_KEY, next, setCountryInsights);
+    setCountryInsights(next);
+    
     clearTimeout(insightSyncTimer.current);
     insightSyncTimer.current = setTimeout(() => {
       syncToGAS({ type: 'weekly', country, week, insight: value });
     }, 1000);
-  }, [countryInsights, persist, syncToGAS]);
+  }, [countryInsights, syncToGAS]);
 
   if (loading) {
-    return <div className="flex items-center justify-center" style={{ height: 300, fontFamily: FONT, color: C.sub }}><Loader2 className="animate-spin" size={20} style={{ marginRight: 8 }} /> 데이터 불러오는 중...</div>;
+    return <div className="flex items-center justify-center" style={{ height: '100vh', fontFamily: FONT, color: C.sub }}><Loader2 className="animate-spin" size={20} style={{ marginRight: 8 }} /> 구글 시트 데이터 동기화 중...</div>;
   }
 
   const weekKeys = weekMeta.map((w) => w.key);
   const endIdx = weekKeys.indexOf(selectedWeek);
-  // 주간 그래프는 항상 최근 7주(선택 주차 포함)를 보여줌
-  const DISPLAY_WEEKS_COUNT = 7;
-  const displayWeeks = weekKeys.slice(Math.max(0, endIdx - (DISPLAY_WEEKS_COUNT - 1)), endIdx + 1);
-
-  const addWeek = () => {
-    const key = newWeekKey.trim();
-    if (!key || !newWeekMonth) return;
-    if (weekKeys.includes(key)) { setSelectedWeek(key); setShowAddWeek(false); return; }
-    const nextMeta = [...weekMeta, { key, month: newWeekMonth }];
-    const nextFeed = { ...feedContents }; const nextAll = { ...allContents }; const nextAccount = { ...accountMetrics }; const nextInsights = { ...countryInsights };
-    COUNTRIES.forEach((c) => { nextFeed[c.key] = { ...(nextFeed[c.key] || {}), [key]: nextFeed[c.key]?.[key] || [] }; nextAll[c.key] = { ...(nextAll[c.key] || {}), [key]: nextAll[c.key]?.[key] || [] }; nextAccount[c.key] = { ...(nextAccount[c.key] || {}), [key]: nextAccount[c.key]?.[key] || zeroAccount() }; nextInsights[c.key] = { ...(nextInsights[c.key] || {}), [key]: nextInsights[c.key]?.[key] || '' }; });
-    persist(STORAGE_WEEKS_KEY, nextMeta, setWeekMeta); persist(STORAGE_FEED_KEY, nextFeed, setFeedContents); persist(STORAGE_ALL_KEY, nextAll, setAllContents); persist(STORAGE_ACCOUNT_KEY, nextAccount, setAccountMetrics); persist(STORAGE_INSIGHTS_KEY, nextInsights, setCountryInsights);
-    setSelectedWeek(key); setShowAddWeek(false); setNewWeekKey(''); setNewWeekMonth('');
-  };
-
-  const onAccountChange = (country, week, key, value) => {
-    const next = { ...accountMetrics, [country]: { ...accountMetrics[country], [week]: { ...(accountMetrics[country]?.[week] || zeroAccount()), [key]: value } } };
-    persist(STORAGE_ACCOUNT_KEY, next, setAccountMetrics);
-  };
+  const displayWeeks = weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1);
 
   return (
-    <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100%', padding: '24px 20px', color: C.ink }}>
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Swatch color={C.accent} size={10} /><Swatch color="#E08A2B" size={10} /><Swatch color="#6C5CE7" size={10} />
-            <span style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginLeft: 4 }}>오호라 · 통합 대시보드</span>
+    <div style={{ fontFamily: FONT, background: C.bg, minHeight: '100vh', color: C.ink }}>
+      <div className="max-w-[1400px] mx-auto w-full" style={{ padding: '24px 20px' }}>
+        
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>한/미 SNS 성과 대시보드</h1>
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>한/미 SNS 성과 대시보드</h1>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-1.5 flex-wrap justify-end" style={{ maxWidth: 520 }}>
+          <div className="flex gap-1.5 flex-wrap justify-end">
             {weekKeys.map((w, i) => (
               <button key={w} onClick={() => setSelectedWeek(w)}
                 style={{ padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1px solid ${w === selectedWeek ? C.accent : C.border}`, background: w === selectedWeek ? C.accent : '#fff', color: w === selectedWeek ? '#fff' : C.sub }}>
-                {i === weekKeys.length - 1 ? `${w} (최신)` : w}
+                {w}
               </button>
             ))}
-            <button onClick={() => setShowAddWeek((v) => !v)} className="flex items-center gap-1"
-              style={{ padding: '7px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1px dashed ${C.border}`, background: '#fff', color: C.sub }}>
-              <Plus size={13} /> 주차
-            </button>
           </div>
-          {showAddWeek && (
-            <div className="flex items-end gap-2" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 10 }}>
-              <label className="flex flex-col gap-1"><span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>주차 이름</span><input type="text" value={newWeekKey} onChange={(e) => setNewWeekKey(e.target.value)} placeholder="예: W25" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 13, width: 90 }} /></label>
-              <label className="flex flex-col gap-1"><span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>월 (월간 현황용)</span><input type="month" value={newWeekMonth} onChange={(e) => setNewWeekMonth(e.target.value)} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 8px', fontSize: 13 }} /></label>
-              <button onClick={addWeek} style={{ padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff', fontSize: 13, fontWeight: 700 }}>추가</button>
-            </div>
-          )}
         </div>
-      </div>
 
-      <div className="flex items-center justify-between flex-wrap gap-2 mb-6">
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap mb-6">
           {NAV.map((n) => {
             const Icon = n.icon;
             const active = view === n.key;
@@ -2191,79 +1486,42 @@ export default function Dashboard() {
             );
           })}
         </div>
-      </div>
 
-      {showGasPanel && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 20, boxShadow: SHADOW }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 4 }}>구글시트 자동 연동 설정</div>
-          <div style={{ fontSize: 12, color: C.sub, marginBottom: 12, lineHeight: 1.6 }}>
-            Apps Script를 배포하고 받은 <b>웹 앱 URL</b>을 붙여넣으세요.<br />
-            설정 후 인사이트/분석을 저장하면 시트의 <b>분석아카이브</b>, <b>주간인사이트</b> 탭에 자동 기록됩니다.
-          </div>
-          <div className="flex gap-2 items-end">
-            <label className="flex flex-col gap-1" style={{ flex: 1 }}>
-              <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>Apps Script 웹 앱 URL</span>
+        {showGasPanel && (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.ink, marginBottom: 12 }}>구글 시트 웹앱 URL 설정</div>
+            <div className="flex gap-2">
               <input type="text" value={gasInput} onChange={(e) => setGasInput(e.target.value)}
-                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%', background: '#fff', color: C.ink }} />
-            </label>
-            <button onClick={saveGasUrl} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', height: 38 }}>
-              저장
+                placeholder="https://script.google.com/macros/s/.../exec"
+                style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%' }} />
+              <button onClick={saveGasUrl} style={{ padding: '8px 16px', borderRadius: 8, background: C.mint, color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }}>저장</button>
+            </div>
+          </div>
+        )}
+
+        {view === 'summary' && <SummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} accountMetrics={accountMetrics} allContents={allContents} productSales={productSales} />}
+        {(view === 'KR' || view === 'US') && (
+          <CountryView
+            countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks}
+            accountMetrics={accountMetrics} countryInsights={countryInsights} onInsightChange={onInsightChange}
+            allContents={allContents} onAllContentsChange={()=>{}} onSyncContent={syncToGAS}
+          />
+        )}
+        {view === 'feed' && (
+          <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} feedContents={feedContents} accountMetrics={accountMetrics} onFeedContentsChange={()=>{}} onSyncContent={syncToGAS} />
+        )}
+
+        <div style={{ fontSize: 11, color: C.subLite, textAlign: 'center', marginTop: 30 }}>
+          모든 데이터는 시트 원본을 바라보고 있으며, 인사이트 수정시 시트에 자동 기록됩니다.
+          <div className="flex items-center justify-center gap-3" style={{ marginTop: 10 }}>
+            <SyncBadge status={syncStatus} />
+            <button onClick={() => setShowGasPanel((v) => !v)} title="구글시트 연동 설정"
+              style={{ padding: 5, borderRadius: 6, border: `1px solid ${gasUrl ? C.mint : C.border}`, background: 'transparent', color: gasUrl ? C.mint : C.border, cursor: 'pointer' }}>
+              <Settings size={12} />
             </button>
-            {gasUrl && (
-              <button onClick={() => { setGasInput(''); setGasUrl(''); window.storage.set(STORAGE_GAS_URL_KEY, '', true).catch(() => {}); setShowGasPanel(false); }}
-                style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', height: 38 }}>
-                연동 해제
-              </button>
-            )}
           </div>
         </div>
-      )}
 
-      {view === 'summary' && <SummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks} accountMetrics={accountMetrics} allContents={allContents} productSales={productSales} onProductSalesChange={(next) => persist(STORAGE_PRODUCT_KEY, next, setProductSales)} />}
-      {(view === 'KR' || view === 'US') && (
-        <CountryView
-          countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks}
-          accountMetrics={accountMetrics} onAccountChange={onAccountChange}
-          countryInsights={countryInsights} onInsightChange={onInsightChange}
-          allContents={allContents} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)}
-          productSales={productSales} onProductSalesChange={(next) => persist(STORAGE_PRODUCT_KEY, next, setProductSales)}
-          activeProjects={activeProjects[view]}
-          onProjectsChange={(v) => persist(STORAGE_PROJECTS_KEY, { ...activeProjects, [view]: v }, setActiveProjects)}
-          onSyncContent={syncToGAS}
-        />
-      )}
-      {view === 'feed' && (
-        <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={displayWeeks}
-          feedContents={feedContents} onFeedContentsChange={(next) => persist(STORAGE_FEED_KEY, next, setFeedContents)}
-          accountMetrics={accountMetrics} allContents={allContents}
-          activeProjects={activeProjects.feed}
-          onProjectsChange={(v) => persist(STORAGE_PROJECTS_KEY, { ...activeProjects, feed: v }, setActiveProjects)}
-          onSyncContent={syncToGAS}
-        />
-      )}
-
-      <div style={{ fontSize: 11, color: C.subLite, textAlign: 'center', marginTop: 24 }}>
-        모든 데이터는 팀 전체에 공유되며 누구나 입력·수정할 수 있습니다.
-        {saveError && <span style={{ color: C.accent, marginLeft: 8 }}>저장 중 오류가 발생했습니다.</span>}
-        <div className="flex items-center justify-center gap-3" style={{ marginTop: 10 }}>
-          <a
-            href="https://docs.google.com/spreadsheets/d/1r1yUxPxvyvZILVhUI0YRamK3Ue0GAHERkerbY5uczLk"
-            target="_blank" rel="noreferrer"
-            className="flex items-center gap-1.5"
-            style={{ color: C.sub, fontSize: 11, fontWeight: 700, textDecoration: 'none', opacity: 0.7 }}
-            onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-            onMouseLeave={(e) => e.currentTarget.style.opacity = 0.7}
-          >
-            <ExternalLink size={11} />
-            인사이트 아카이브 시트에서 보기 →
-          </a>
-          <SyncBadge status={syncStatus} />
-          <button onClick={() => setShowGasPanel((v) => !v)} title="구글시트 연동 설정"
-            style={{ padding: 5, borderRadius: 6, border: `1px solid ${gasUrl ? C.mint : C.border}`, background: 'transparent', color: gasUrl ? C.mint : C.border, cursor: 'pointer' }}>
-            <Settings size={12} />
-          </button>
-        </div>
       </div>
     </div>
   );
