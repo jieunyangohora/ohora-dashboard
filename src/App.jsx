@@ -450,7 +450,23 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   const labelsA = useMemo(() => metricLabels(ACCOUNT_METRICS), []);
   const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
-  const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) })); const [subView, setSubView] = useState('overview'); const [trendMode, setTrendMode] = useState('weekly'); 
+  const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) })); const [subView, setSubView] = useState('overview'); const [trendMode, setTrendMode] = useState('weekly');
+  const [selectedMonthNode, setSelectedMonthNode] = useState(null);
+  const monthlyData = useMemo(() => {
+    const year = new Date().getFullYear(); const curMonth = new Date().getMonth() + 1;
+    const byMonth = {};
+    weekMeta.forEach((wm) => { const t = metrics[wm.key]; if (!t || !wm.month) return; if (!byMonth[wm.month]) byMonth[wm.month] = { reach: 0, engagement: 0, sales: 0, inflow: 0 }; ['reach', 'engagement', 'sales', 'inflow'].forEach((k) => { byMonth[wm.month][k] += Number(t[k] || 0); }); });
+    const out = [];
+    for (let mo = 1; mo <= curMonth; mo++) { const key = year + '-' + String(mo).padStart(2, '0'); const v = byMonth[key] || { reach: 0, engagement: 0, sales: 0, inflow: 0 }; out.push({ month: key, ...v }); }
+    return out;
+  }, [weekMeta, metrics]);
+  const selectedMonthTopContents = useMemo(() => {
+    if (!selectedMonthNode) return [];
+    const monthWeeks = weekMeta.filter((w) => w.month === selectedMonthNode).map((w) => w.key);
+    const items = [];
+    monthWeeks.forEach((wk) => (allContents[countryKey]?.[wk] || []).forEach((it) => items.push(it)));
+    return items.sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 3);
+  }, [selectedMonthNode, weekMeta, allContents, countryKey]);
   const [selectedDayNode, setSelectedDailyNode] = useState(null);
   const [selectedWeekNode, setSelectedWeekNode] = useState(null);
   const [showAllList, setShowAllList] = useState(false);
@@ -560,9 +576,10 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
           <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{trendMode === 'weekly' ? '📈 주간 대시보드 트렌드 (그래프 클릭 시 해당 주 TOP3)' : '🔥 최근 30일 일별 실시간 센서 (날짜를 클릭하세요)'}</h3></div>
+              <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{trendMode === 'weekly' ? '📈 주간 대시보드 트렌드 (그래프 클릭 시 해당 주 TOP3)' : trendMode === 'monthly' ? '📅 월간 트렌드 (올해 1월~최근월, 클릭 시 해당 월 TOP3)' : '🔥 최근 30일 일별 실시간 센서 (날짜를 클릭하세요)'}</h3></div>
               <div style={{ display: 'inline-flex', background: '#F4EEE8', padding: '3px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
                 <button onClick={() => setTrendMode('weekly')} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: 12, fontWeight: trendMode === 'weekly' ? 800 : 500, background: trendMode === 'weekly' ? '#fff' : 'transparent', color: trendMode === 'weekly' ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>📊 7주 주간 추이</button>
+                <button onClick={() => setTrendMode('monthly')} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: 12, fontWeight: trendMode === 'monthly' ? 800 : 500, background: trendMode === 'monthly' ? '#fff' : 'transparent', color: trendMode === 'monthly' ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>📅 월간 추이</button>
                 <button onClick={() => setTrendMode('daily')} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: 12, fontWeight: trendMode === 'daily' ? 800 : 500, background: trendMode === 'daily' ? '#fff' : 'transparent', color: trendMode === 'daily' ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>🔥 최근 30일 일별 화력</button>
               </div>
             </div>
@@ -643,6 +660,57 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                     </div>
                   )}
                 </div>
+              </div>
+            ) : trendMode === 'monthly' ? (
+              <div>
+                <div style={{ width: '100%', height: 240 }}>
+                  <ResponsiveContainer>
+                    <ComposedChart data={monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }} onClick={(state) => { if (state && state.activeLabel) setSelectedMonthNode(state.activeLabel); }} style={{ cursor: 'pointer' }}>
+                      <CartesianGrid stroke={C.border} vertical={false} />
+                      <XAxis dataKey="month" tickFormatter={(m) => Number(String(m).split('-')[1]) + '월'} tick={{ fontSize: 12, fill: C.sub }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 10000 ? `${(v/10000).toFixed(0)}만` : v} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 100000000 ? `${(v/100000000).toFixed(0)}억` : v >= 10000 ? `${(v/10000).toFixed(0)}만` : v} />
+                      <YAxis yAxisId="inflow" hide={true} domain={['auto', 'auto']} />
+                      <YAxis yAxisId="eng" hide={true} domain={['auto', 'auto']} />
+                      <Tooltip content={<ChartTooltip labels={labelsA} />} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line yAxisId="eng" type="monotone" dataKey="engagement" name="참여수" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={1.5} strokeDasharray="5 4" dot={false} opacity={0.65} />
+                      <Line yAxisId="left" type="monotone" dataKey="reach" name="도달수" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line yAxisId="inflow" type="monotone" dataKey="inflow" name="유입" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="sales" name="매출" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                {selectedMonthNode && (
+                  <div className="mt-4 p-4 border rounded-xl bg-gray-50 animate-fadeIn" style={{ borderColor: C.border }}>
+                    <div className="flex justify-between items-center mb-3">
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🔍 {Number(String(selectedMonthNode).split('-')[1])}월 발행 TOP 3</span>
+                      <button onClick={() => setSelectedMonthNode(null)} style={{ background: 'none', border: 'none', color: C.subLite, cursor: 'pointer' }}><X size={15} /></button>
+                    </div>
+                    {selectedMonthTopContents.length === 0 ? (
+                      <div style={{ fontSize: 12, color: C.subLite, textAlign: 'center', padding: '10px 0' }}>이 달에 발행된 콘텐츠가 없습니다.</div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {selectedMonthTopContents.map((item, idx) => {
+                          const g = resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null;
+                          return (
+                            <div key={item.id || idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border" style={{ borderColor: C.border }}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span style={{ fontSize: 12, fontWeight: 800, color: C.accent }}>TOP {idx + 1}</span>
+                                <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-800 hover:text-blue-600 truncate underline flex items-center gap-1">
+                                  {g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: g.bg, color: g.color, marginRight: '4px', display: 'inline-block', cursor: 'help' }}>{g.label} 상위{g.pct}%</span>}
+                                  {item.title ? (item.title.substring(0, 18) + (item.title.length > 18 ? '…' : '')) : '(제목 없음)'}
+                                  <ExternalLink size={11} />
+                                </a>
+                              </div>
+                              <div className="flex gap-3 text-xs text-gray-500 font-semibold flex-shrink-0"> <span>도달: {fmt(item.reach)}</span> <span>참여: {fmt(item.engagement)}</span> </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ width: '100%', height: 240 }}>
