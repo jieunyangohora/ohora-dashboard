@@ -34,6 +34,7 @@ const numFrom = (v) => { const n = Number(String(v ?? '').replace(/[,\s%]/g, '')
 
 const isReel = (item) => { if (!item) return false; if (item.isReel !== undefined) return item.isReel; return /\/reel[s]?\//i.test(item.link || ''); };
 const contentScore = (item) => item ? (Number(item.reach || 0) + Number(item.engagement || 0)) : 0;
+const salesConvScore = (item) => item ? Number(item.salesConvD7 || 0) : 0;
 const feedScore = (item) => item ? (Number(item.reach || 0) + Number(item.saves || 0) + Number(item.shares || 0) + Number(item.likes || 0) + Number(item.comments || 0)) : 0;
 
 const fmtMonth = (m) => { if (!m) return ''; const [y, mo] = m.split('-'); return `${y}.${mo}`; };
@@ -218,7 +219,13 @@ function ContentThumbnail({ item }) {
   return ( <div style={{ width: 50, height: 50, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: 'inset 0 0 4px rgba(0,0,0,0.1)' }}> <Icon size={18} color="#FFFFFF" opacity={0.9} /> </div> );
 }
 
-function ContentCard({ item, coreKeys, subKeys, metricsMap, grade }) {
+const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 판매전환 리뷰']];
+function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '' });
+  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '' }); }, [open]);
+  const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
+  const hasReview = item.hypothesis || item.analysis || item.salesReview;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, boxShadow: SHADOW }}>
       <div className="flex gap-4 items-center">
@@ -242,6 +249,9 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade }) {
           {item.productCategory && (
             <div className="flex items-center gap-1.5 flex-wrap" style={{ marginBottom: 6 }}>
               <span title={"노출된 제품의 판매전환 성과\n게시일 ±N일 윈도우 내 해당 제품 판매수량(ea) 합계"} style={{ fontSize: 10, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
+              {salesGrade && Number(item.salesConvD7 || 0) > 0 && (
+                <span title={"판매전환 상대등급 (최근 30일 기준 ±7일 전환수 백분위)"} style={{ fontSize: 10, fontWeight: 900, padding: '1px 6px', borderRadius: 4, background: salesGrade.bg, color: salesGrade.color, cursor: 'help' }}>전환 {salesGrade.label} <span style={{ opacity: 0.75 }}>상위{salesGrade.pct}%</span></span>
+              )}
               {[['±1일', item.salesConvD1], ['±3일', item.salesConvD3], ['±7일', item.salesConvD7]].map(([lab, v]) => (
                 <span key={lab} style={{ fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: '#FCE9EC', color: '#C2185B' }}>{lab} {fmt(v || 0)}건</span>
               ))}
@@ -251,6 +261,31 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade }) {
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 max-w-[200px] justify-end"> {subKeys.map((k) => <MetricPill key={k} metricsMap={metricsMap} mkey={k} value={item[k]} />) } </div>
       </div>
+      {(onEditAnalysis || hasReview) && (
+        <div style={{ marginTop: 10, borderTop: `1px dashed ${C.border}`, paddingTop: 10 }}>
+          {!open ? (
+            <div className="flex items-start gap-2 flex-wrap" style={{ fontSize: 11.5, color: C.sub }}>
+              {item.hypothesis && <span style={{ flex: '1 1 200px' }}>💡 <b style={{ color: C.ink }}>가설</b> {item.hypothesis}</span>}
+              {item.analysis && <span style={{ flex: '1 1 200px' }}>📝 <b style={{ color: C.ink }}>분석</b> {item.analysis}</span>}
+              {item.salesReview && <span style={{ flex: '1 1 200px' }}>💰 <b style={{ color: C.ink }}>전환리뷰</b> {item.salesReview}</span>}
+              {onEditAnalysis && item.link && <button onClick={() => setOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, border: `1px solid ${C.border}`, background: '#fff', color: C.accent, cursor: 'pointer', flexShrink: 0 }}>✏️ 리뷰 {hasReview ? '수정' : '작성'}</button>}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {REVIEW_FIELDS.map(([f, label]) => (
+                <label key={f} className="flex flex-col gap-1">
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>{label}</span>
+                  <textarea value={draft[f]} onChange={(e) => setDraft((d) => ({ ...d, [f]: e.target.value }))} onBlur={() => saveField(f)} rows={2} placeholder="입력 시 자동 저장 · 모든 접속자에게 공유됩니다" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 9px', fontSize: 12.5, fontFamily: FONT, resize: 'vertical', width: '100%' }} />
+                </label>
+              ))}
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => { REVIEW_FIELDS.forEach(([f]) => saveField(f)); setOpen(false); }} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', cursor: 'pointer' }}>저장</button>
+                <button onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer' }}>닫기</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -349,12 +384,13 @@ function SummaryView({ weekMeta, selectedWeek, accountMetrics, allContents, reso
   );
 }
 
-function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, resolvers }) {
+function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, resolvers, onEditAnalysis }) {
   const labelsA = useMemo(() => metricLabels(ACCOUNT_METRICS), []);
   const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
   const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) })); const [subView, setSubView] = useState('overview'); const [trendMode, setTrendMode] = useState('weekly'); 
   const [selectedDayNode, setSelectedDailyNode] = useState(null);
+  const [selectedWeekNode, setSelectedWeekNode] = useState(null);
   const [showAllList, setShowAllList] = useState(false);
   const [showWeeklyTable, setShowWeeklyTable] = useState(false);
 
@@ -402,6 +438,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
   const localDailyArray = useMemo(() => dailyMetrics[countryKey] || [], [dailyMetrics, countryKey]);
   const selectedDayTopContents = useMemo(() => { if (!selectedDayNode) return []; let dayContents = []; weekKeys.forEach(wk => { (allContents[countryKey]?.[wk] || []).forEach(item => { if (item.publishDate === selectedDayNode._raw_date) dayContents.push(item); }); }); return dayContents.sort((a,b) => contentScore(b) - contentScore(a)).slice(0, 3); }, [selectedDayNode, allContents, countryKey, weekKeys]);
+  const selectedWeekTopContents = useMemo(() => { if (!selectedWeekNode) return []; return [...(allContents[countryKey]?.[selectedWeekNode] || [])].sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 3); }, [selectedWeekNode, allContents, countryKey]);
 
   return (
     <div>
@@ -456,7 +493,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
           <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{trendMode === 'weekly' ? '📈 주간 대시보드 트렌드 (그래프에 마우스를 올리세요)' : '🔥 최근 30일 일별 실시간 센서 (날짜를 클릭하세요)'}</h3></div>
+              <div><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>{trendMode === 'weekly' ? '📈 주간 대시보드 트렌드 (그래프 클릭 시 해당 주 TOP3)' : '🔥 최근 30일 일별 실시간 센서 (날짜를 클릭하세요)'}</h3></div>
               <div style={{ display: 'inline-flex', background: '#F4EEE8', padding: '3px', borderRadius: '8px', border: `1px solid ${C.border}` }}>
                 <button onClick={() => setTrendMode('weekly')} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: 12, fontWeight: trendMode === 'weekly' ? 800 : 500, background: trendMode === 'weekly' ? '#fff' : 'transparent', color: trendMode === 'weekly' ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>📊 7주 주간 추이</button>
                 <button onClick={() => setTrendMode('daily')} style={{ padding: '5px 12px', borderRadius: '6px', fontSize: 12, fontWeight: trendMode === 'daily' ? 800 : 500, background: trendMode === 'daily' ? '#fff' : 'transparent', color: trendMode === 'daily' ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>🔥 최근 30일 일별 화력</button>
@@ -467,8 +504,8 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
               <div>
                 <div style={{ width: '100%', height: 240 }}>
                   <ResponsiveContainer>
-                    <ComposedChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <CartesianGrid stroke={C.border} vertical={false} /> 
+                    <ComposedChart data={trendData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }} onClick={(state) => { if (state && state.activeLabel) setSelectedWeekNode(state.activeLabel); }} style={{ cursor: 'pointer' }}>
+                      <CartesianGrid stroke={C.border} vertical={false} />
                       <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={false} tickLine={false} /> 
                       <YAxis yAxisId="left" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 10000 ? `${(v/10000).toFixed(0)}만` : v} />
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -483,6 +520,38 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+
+                {selectedWeekNode && (
+                  <div className="mt-4 p-4 border rounded-xl bg-gray-50 animate-fadeIn" style={{ borderColor: C.border }}>
+                    <div className="flex justify-between items-center mb-3">
+                      <span style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>🔍 {selectedWeekNode} ({weekRangeLabel(selectedWeekNode, weekMeta)}) 발행 TOP 3</span>
+                      <button onClick={() => setSelectedWeekNode(null)} style={{ background: 'none', border: 'none', color: C.subLite, cursor: 'pointer' }}><X size={15} /></button>
+                    </div>
+                    {selectedWeekTopContents.length === 0 ? (
+                      <div style={{ fontSize: 12, color: C.subLite, textAlign: 'center', padding: '10px 0' }}>이 주차에 발행된 콘텐츠가 없습니다.</div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {selectedWeekTopContents.map((item, idx) => {
+                          const g = resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null;
+                          return (
+                            <div key={item.id || idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border" style={{ borderColor: C.border }}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span style={{ fontSize: 12, fontWeight: 800, color: C.accent }}>TOP {idx + 1}</span>
+                                <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-800 hover:text-blue-600 truncate underline flex items-center gap-1">
+                                  {g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: g.bg, color: g.color, marginRight: '4px', display: 'inline-block', cursor: 'help' }}>{g.label} 상위{g.pct}%</span>}
+                                  {Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5', marginRight: '4px', display: 'inline-block' }}>🔥 100만뷰</span>}
+                                  {item.title ? (item.title.substring(0, 18) + (item.title.length > 18 ? '…' : '')) : '(제목 없음)'}
+                                  <ExternalLink size={11} />
+                                </a>
+                              </div>
+                              <div className="flex gap-3 text-xs text-gray-500 font-semibold flex-shrink-0"> <span>도달: {fmt(item.reach)}</span> <span>참여: {fmt(item.engagement)}</span> </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 pt-2 border-t border-dashed border-gray-200">
                   <button onClick={() => setShowWeeklyTable(!showWeeklyTable)} className="flex items-center gap-1 text-xs font-bold text-gray-500 hover:text-gray-800 bg-gray-100 px-3 py-1.5 rounded-lg border" style={{ cursor: 'pointer' }}>
@@ -545,7 +614,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                           <div className="flex items-center gap-2 min-w-0">
                             <span style={{ fontSize: 12, fontWeight: 800, color: C.accent }}>TOP {idx+1}</span>
                             <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-800 hover:text-blue-600 truncate underline flex items-center gap-1">
-                              {g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: g.bg, color: g.color, marginRight: '4px', textDecoration: 'none', display: 'inline-block', cursor: 'help' }}>{g.label}</span>}
+                              {g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: g.bg, color: g.color, marginRight: '4px', textDecoration: 'none', display: 'inline-block', cursor: 'help' }}>{g.label} 상위{g.pct}%</span>}
                               {Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5', marginRight: '4px', textDecoration: 'none', display: 'inline-block' }}>🔥 100만뷰</span>}
                               {item.title ? (item.title.substring(0, 14) + (item.title.length > 14 ? '...' : '')) : '(제목 없음)'}
                               <ExternalLink size={11} />
@@ -599,7 +668,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             </div>
             <div className="flex flex-col gap-2.5 mt-3">
               {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-              {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} />)}
+              {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -609,7 +678,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             </div>
             <div className="flex flex-col gap-2.5 mt-3">
               {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-              {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} />)}
+              {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -625,7 +694,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 </div>
                 <div className="flex flex-col gap-2.5">
                   {weekItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 콘텐츠가 없습니다.</div>}
-                  {weekItems.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} />)}
+                  {weekItems.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
                 </div>
               </div>
             )}
@@ -746,6 +815,8 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers }) {
 
 function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
   const [archiveCountry, setArchiveCountry] = useState('all'); const [filterMode, setFilterMode] = useState('all'); const [archType, setArchType] = useState('all'); const [archProd, setArchProd] = useState('all'); const [archSort, setArchSort] = useState('score');
+  const [archGrades, setArchGrades] = useState([]);
+  const toggleGrade = (label) => setArchGrades((prev) => prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]);
   const weekKeys = weekMeta.map((w) => w.key);
   const [archiveSubTab, setArchiveSubTab] = useState('list'); 
 
@@ -783,19 +854,28 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
         if (archType === 'reel' && !itemIsReel) return false;
         if (archType === 'feed' && itemIsReel) return false;
       }
-      if (archProd !== 'all') { 
+      if (archProd !== 'all') {
         const catToken = String(item.productCategory || '').trim();
-        if (archProd === 'unclassified') { if (catToken !== '') return false; } 
-        else { if (catToken !== archProd) return false; } 
+        if (archProd === 'unclassified') { if (catToken !== '') return false; }
+        else { if (catToken !== archProd) return false; }
+      }
+      if (archGrades.length) {
+        const g = resolvers[item._country + '_all'] ? resolvers[item._country + '_all'](item) : null;
+        if (!g || !archGrades.includes(g.label)) return false;
       }
       return true;
     }).sort((a, b) => {
       if (archSort === 'reach') return Number(b.reach || 0) - Number(a.reach || 0);
       if (archSort === 'views') return Number(b.views || 0) - Number(a.views || 0);
       if (archSort === 'engagement') return Number(b.engagement || 0) - Number(a.engagement || 0);
+      if (archSort === 'shares') return Number(b.shares || 0) - Number(a.shares || 0);
+      if (archSort === 'comments') return Number(b.comments || 0) - Number(a.comments || 0);
+      if (archSort === 'saves') return Number(b.saves || 0) - Number(a.saves || 0);
+      if (archSort === 'likes') return Number(b.likes || 0) - Number(a.likes || 0);
+      if (archSort === 'sales') return salesConvScore(b) - salesConvScore(a);
       return contentScore(b) - contentScore(a);
     });
-  }, [allContents, archiveCountry, filterMode, archType, archProd, archSort, weekKeys]);
+  }, [allContents, archiveCountry, filterMode, archType, archProd, archSort, archGrades, weekKeys, resolvers]);
 
   return (
     <div>
@@ -822,8 +902,16 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                   <select value={archProd} onChange={(e) => setArchProd(e.target.value)} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, background: '#fff', width: 140 }}><option value="all">전체보기</option><option value="unclassified">미분류</option>{PRODUCT_CATS.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}</select>
                 </label>
                 <div className="flex flex-col gap-1.5 ml-auto"><span style={{ fontSize: 11, color: C.sub, fontWeight: 700 }}>정렬 순서</span>
-                  <select value={archSort} onChange={(e) => setArchSort(e.target.value)} style={{ border: `1px solid ${C.ink}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontWeight: 700, background: '#fff' }}><option value="score">결합점수 (도달+참여)</option><option value="reach">도달순</option><option value="views">조회순</option><option value="engagement">참여순</option></select>
+                  <select value={archSort} onChange={(e) => setArchSort(e.target.value)} style={{ border: `1px solid ${C.ink}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, fontWeight: 700, background: '#fff' }}><option value="score">결합점수 (도달+참여)</option><option value="reach">도달순</option><option value="views">조회순</option><option value="engagement">참여순</option><option value="shares">공유순</option><option value="comments">댓글순</option><option value="saves">저장순</option><option value="likes">좋아요순</option><option value="sales">판매전환순</option></select>
                 </div>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-dashed" style={{ borderColor: C.border }}>
+                <span style={{ fontSize: 11, color: C.sub, fontWeight: 700, marginRight: 4 }}>등급 필터 <span style={{ fontWeight: 500 }}>(복수선택)</span></span>
+                {GRADE_SPECS.map((spec) => {
+                  const on = archGrades.includes(spec.label);
+                  return <button key={spec.label} onClick={() => toggleGrade(spec.label)} style={{ padding: '4px 11px', borderRadius: 999, fontSize: 12, fontWeight: 800, cursor: 'pointer', border: `1.5px solid ${on ? spec.color : C.border}`, background: on ? spec.bg : '#fff', color: on ? spec.color : C.sub }}>{spec.label}</button>;
+                })}
+                {archGrades.length > 0 && <button onClick={() => setArchGrades([])} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: `1px solid ${C.border}`, background: '#fff', color: C.sub }}>✕ 초기화</button>}
               </div>
             </>
           )}
@@ -899,7 +987,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
             {archiveItems.map((item, index) => (
               <div key={`arc-${item._country}-${item._week}-${item.id || 0}-${index}`}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: item._country === 'KR' ? '#E8546B' : '#3E6FE0', display: 'inline-block', padding: '3px 10px', borderRadius: '8px 8px 0 0' }}>{item._country === 'KR' ? '🇰🇷 한국' : '🇺🇸 미국'} · {item._week}</div>
-                <div style={{ marginTop: -1 }}><ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[item._country + '_all'] ? resolvers[item._country + '_all'](item) : null} /></div>
+                <div style={{ marginTop: -1 }}><ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[item._country + '_all'] ? resolvers[item._country + '_all'](item) : null} salesGrade={resolvers[item._country + '_sales'] ? resolvers[item._country + '_sales'](item) : null} /></div>
               </div>
             ))}
           </div>
@@ -926,7 +1014,8 @@ export default function Dashboard() {
       if (!times.length) return arr; const maxTime = Math.max(...times);
       return arr.filter(i => (maxTime - new Date(i.publishDate).getTime()) <= 30 * 24 * 60 * 60 * 1000);
     };
-    return { KR_all: extract(allContents, 'KR'), US_all: extract(allContents, 'US'), KR_feed: extract(feedContents, 'KR'), US_feed: extract(feedContents, 'US') };
+    const krAll = extract(allContents, 'KR'), usAll = extract(allContents, 'US');
+    return { KR_all: krAll, US_all: usAll, KR_feed: extract(feedContents, 'KR'), US_feed: extract(feedContents, 'US'), KR_sales: krAll.filter(i => salesConvScore(i) > 0), US_sales: usAll.filter(i => salesConvScore(i) > 0) };
   }, [allContents, feedContents]);
 
   // 💡 [엘리트 등급제] S급:3%, A+급:7%, A급:15%, B급:30%, C급:55% 적용 및 정확한 퍼센트(%) 라벨 계산
@@ -947,8 +1036,10 @@ export default function Dashboard() {
     return { 
       KR_all: getGradeResolver(pools.KR_all, contentScore), 
       US_all: getGradeResolver(pools.US_all, contentScore), 
-      KR_feed: getGradeResolver(pools.KR_feed, feedScore), 
-      US_feed: getGradeResolver(pools.US_feed, feedScore) 
+      KR_feed: getGradeResolver(pools.KR_feed, feedScore),
+      US_feed: getGradeResolver(pools.US_feed, feedScore),
+      KR_sales: getGradeResolver(pools.KR_sales, salesConvScore),
+      US_sales: getGradeResolver(pools.US_sales, salesConvScore)
     };
   }, [pools]);
 
@@ -986,7 +1077,7 @@ export default function Dashboard() {
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
-      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact']; const currentYearStr = "2026";
+      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview']; const currentYearStr = "2026";
       const mergeList = (localList, freshList) => {
         if (!Array.isArray(freshList)) return []; const byLink = {}; (localList || []).forEach((it) => { if (it && it.link) byLink[it.link] = it; });
         return freshList.filter(fresh => fresh && fresh.publishDate && String(fresh.publishDate).startsWith(currentYearStr)).map((raw) => {
@@ -1017,6 +1108,31 @@ export default function Dashboard() {
   }, [gasUrl, accountMetrics, allContents, feedContents, persist]);
 
   const saveGasUrl = async () => { const url = gasInput.trim(); setGasUrl(url); try { await storage.set(STORAGE_GAS_URL_KEY, url); } catch (e) {} setShowGasPanel(false); };
+
+  // #6 리뷰(가설/분석/판매전환) 양방향 키인: 즉시 로컬 반영(낙관적) + GAS 저장(link 기준 누적)
+  const handleEditAnalysis = useCallback((link, field, value) => {
+    if (!link) return;
+    setAllContents((prev) => {
+      const next = { ...prev };
+      COUNTRIES.forEach((c) => {
+        const country = c.key; if (!next[country]) return;
+        next[country] = { ...next[country] };
+        Object.keys(next[country]).forEach((wk) => {
+          next[country][wk] = (next[country][wk] || []).map((it) => (it && it.link === link ? { ...it, [field]: value } : it));
+        });
+      });
+      try { storage.set(STORAGE_ALL_KEY, JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+    syncToGAS({ type: 'analysis', field, ref: link, value });
+  }, [syncToGAS]);
+
+  // 저장 즉시 + 자동 새로고침: 다른 접속자 입력이 45초마다 반영 (탭이 보일 때만)
+  useEffect(() => {
+    if (!gasUrl) return;
+    const id = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState === 'visible') pullFromGAS(); }, 45000);
+    return () => clearInterval(id);
+  }, [gasUrl, pullFromGAS]);
   if (loading) return <div className="flex items-center justify-center h-48 font-bold text-gray-500">대시보드 로딩 중...</div>;
   const weekKeys = weekMeta.map(w => w.key); const endIdx = weekKeys.indexOf(selectedWeek); const recentWeekKeys = weekKeys.slice(-7);
 
@@ -1053,7 +1169,7 @@ export default function Dashboard() {
         )}
 
         {view === 'summary' && <SummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} accountMetrics={accountMetrics} allContents={allContents} resolvers={resolvers} />}
-        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} />}
+        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}
 
