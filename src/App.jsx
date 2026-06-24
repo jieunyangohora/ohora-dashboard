@@ -244,7 +244,7 @@ function HeroCard({ metricsMap, mkey, value, delta, sub, accentColor, tooltip })
   );
 }
 
-function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organicDelta, accentColor }) { const m = ACCOUNT_METRICS[mkey]; const om = ACCOUNT_METRICS[organicKey]; const Icon = m.icon; const OIcon = om.icon; const ratio = value > 0 ? Math.round((organicValue / value) * 100) : 0; return ( <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 190, boxShadow: SHADOW }}> {accentColor && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: accentColor }} />} <div className="flex items-center justify-between mb-2"> <div className="flex items-center gap-2"><Swatch color={m.color} size={10} /><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span></div> <Icon size={16} color={m.color} /> </div> <div className="flex items-end justify-between"> <span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmt(value)}</span> <DeltaTag value={delta} /> </div> <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}> <div className="flex items-center justify-between"> <div className="flex items-center gap-1.5"> <OIcon size={13} color={om.color} strokeWidth={2.2} /> <span style={{ fontSize: 11.5, color: C.sub, fontWeight: 600 }}>{om.label}</span> </div> <div className="flex items-center gap-2"> <span style={{ fontSize: 14, fontWeight: 800, color: om.color }}>{fmt(organicValue)}</span> <span style={{ fontSize: 11, fontWeight: 700, color: C.sub, background: C.mintSoft, borderRadius: 999, padding: '1px 7px' }}>{ratio}%</span> </div> </div> </div> </div> ); }
+function ReachOrganicCard({ mkey, organicKey, value, organicValue, delta, organicDelta, accentColor }) { const m = ACCOUNT_METRICS[mkey]; const om = ACCOUNT_METRICS[organicKey]; const Icon = m.icon; const OIcon = om.icon; const ratio = value > 0 ? Math.round((organicValue / value) * 100) : 0; return ( <div className="flex-1" style={{ position: 'relative', overflow: 'hidden', background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 190, boxShadow: SHADOW }}> {accentColor && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: accentColor }} />} <div className="flex items-center justify-between mb-2"> <div className="flex items-center gap-2"><Swatch color={m.color} size={10} /><span style={{ fontSize: 13, color: C.sub, fontWeight: 700 }}>{m.label}</span></div> <Icon size={16} color={m.color} /> </div> <div className="flex items-end justify-between"> <span style={{ fontSize: 26, fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>{fmt(value)}</span> <DeltaTag value={delta} /> </div> <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.border}` }}> <div className="flex items-center justify-between"> <div className="flex items-center gap-1.5"> <OIcon size={13} color={om.color} strokeWidth={2.2} /> <span style={{ fontSize: 11.5, color: C.sub, fontWeight: 600 }}>{om.label}</span> </div> <div className="flex items-center gap-2"> <span style={{ fontSize: 14, fontWeight: 800, color: om.color }}>{fmt(organicValue)}</span> <DeltaTag value={organicDelta} /> <span style={{ fontSize: 11, fontWeight: 700, color: C.sub, background: C.mintSoft, borderRadius: 999, padding: '1px 7px' }}>{ratio}%</span> </div> </div> </div> </div> ); }
 
 function ContentThumbnail({ item }) {
   const catGradients = { gelPressOn: 'linear-gradient(135deg, #FF758C 0%, #FF7EB3 100%)', hardener: 'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)', gelStrip: 'linear-gradient(135deg, #2E9E89 0%, #68D391 100%)', otherCare: 'linear-gradient(135deg, #C9A24B 0%, #F6E05E 100%)' };
@@ -895,6 +895,21 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnaly
   );
 }
 
+function HofReview({ item, accent }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 2 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ fontSize: 10.5, fontWeight: 700, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}>{open ? '▲ 가설·분석 접기' : '💡 가설·분석 보기'}</button>
+      {open && (
+        <div className="text-[11px] p-2 rounded-lg border flex flex-col gap-1 text-gray-700" style={{ background: '#FFFDF5', borderColor: '#EFE2C8' }}>
+          <div>💡 <b>가설:</b> {item.hypothesis || '미입력'}</div>
+          <div>📝 <b>분석:</b> {item.analysis || '미입력'}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
   const [archiveCountry, setArchiveCountry] = useState('all'); const [filterMode, setFilterMode] = useState('all'); const [archType, setArchType] = useState('all'); const [archProd, setArchProd] = useState('all'); const [archSort, setArchSort] = useState('score');
   const [archFrom, setArchFrom] = useState(''); const [archTo, setArchTo] = useState('');
@@ -1036,10 +1051,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                         {item.link ? ( <a href={item.link} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex-shrink-0"><ContentThumbnail item={item} /></a> ) : ( <ContentThumbnail item={item} /> )}
                         <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-900 hover:text-blue-600 underline line-clamp-2 leading-snug">{item.title || '(제목 없음)'}</a>
                       </div>
-                      <div className="text-[11px] bg-amber-50/50 p-2 rounded-lg border border-amber-100 flex flex-col gap-1 text-gray-700">
-                        <div className="truncate">💡 <b>가설:</b> {item.hypothesis || '미입력'}</div>
-                        <div className="truncate">📝 <b>분석:</b> {item.analysis || '미입력'}</div>
-                      </div>
+                      <HofReview item={item} accent="#9E782F" />
                     </div>
                     <div className="flex justify-between items-center text-[11px] font-bold text-gray-500 pt-2 border-t mt-2" style={{ borderColor: '#F4EEE8' }}>
                       <span>👁️ 도달 {fmt(item.reach)}</span><span style={{ color: '#C9A24B' }}>🔥 {fmt(contentScore(item))}점</span>
@@ -1066,10 +1078,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                         {item.link ? ( <a href={item.link} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex-shrink-0"><ContentThumbnail item={item} /></a> ) : ( <ContentThumbnail item={item} /> )}
                         <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-900 hover:text-blue-600 underline line-clamp-2 leading-snug">{item.title || '(제목 없음)'}</a>
                       </div>
-                      <div className="text-[11px] bg-orange-50/40 p-2 rounded-lg border border-orange-100 flex flex-col gap-1 text-gray-700">
-                        <div className="truncate">💡 <b>가설:</b> {item.hypothesis || '미입력'}</div>
-                        <div className="truncate">📝 <b>분석:</b> {item.analysis || '미입력'}</div>
-                      </div>
+                      <HofReview item={item} accent="#C46D14" />
                     </div>
                     <div className="flex justify-between items-center text-[11px] font-bold text-gray-500 pt-2 border-t mt-2" style={{ borderColor: '#F4EEE8' }}>
                       <span>👁️ 도달 {fmt(item.reach)}</span><span style={{ color: '#E08A2B' }}>🔥 {fmt(contentScore(item))}점</span>
