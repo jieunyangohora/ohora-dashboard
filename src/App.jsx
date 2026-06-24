@@ -269,6 +269,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
           <a href={item.link || undefined} target="_blank" rel="noreferrer" className="flex items-center gap-1" style={{ fontSize: 14, fontWeight: 700, color: C.ink, textDecoration: 'none', marginBottom: 6, display: 'inline-flex', width: '100%' }}>
             {grade && ( <span title={GRADE_TOOLTIP} style={{ fontSize: '10px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', background: grade.bg, color: grade.color, marginRight: '6px', flexShrink: 0, cursor: 'help' }}>{grade.label} <span style={{ opacity: 0.75, fontWeight: 700 }}>상위{grade.pct}%</span></span> )}
             {Number(item.views || 0) >= 1000000 && ( <span style={{ fontSize: '10px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5', marginRight: '6px', flexShrink: 0 }}>🔥 100만뷰</span> )}
+            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: 4, marginRight: 6, flexShrink: 0, background: isReel(item) ? '#EDE9FE' : '#E0F2FE', color: isReel(item) ? '#6C5CE7' : '#0369A1' }}>{isReel(item) ? '🎬 릴스' : '🖼️ 피드'}</span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title || '(제목 없음)'}</span> {item.link && <ExternalLink size={12} color={C.sub} />}
           </a>
           {item.productCategory && (() => {
@@ -492,6 +493,8 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
   const weekItems = allContents[countryKey]?.[selectedWeek] || [];
   const weekReelCount = weekItems.filter(isReel).length; const weekFeedCount = weekItems.length - weekReelCount;
+  const [gradeFilter, setGradeFilter] = useState(null);
+  const gradeFilteredItems = useMemo(() => gradeFilter ? weekItems.filter((item) => resolvers[countryKey + '_all']?.(item)?.label === gradeFilter).sort((a, b) => contentScore(b) - contentScore(a)) : [], [gradeFilter, weekItems, resolvers, countryKey]);
   
   const topContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['S급', 'A+급', 'A급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
   const bottomContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['B급', 'C급', 'D급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
@@ -562,17 +565,30 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
               {GRADE_SPECS.map(spec => {
                 const count = weekItems.filter(item => resolvers[countryKey + '_all']?.(item)?.label === spec.label).length;
                 const pctValue = weekItems.length ? (count / weekItems.length) * 100 : 0;
+                const active = gradeFilter === spec.label;
                 return (
-                  <div key={spec.label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-                    <span title={GRADE_TOOLTIP} style={{ fontSize: '10px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', background: spec.bg, color: spec.color, display: 'inline-block', marginBottom: '4px', cursor: 'help' }}>{spec.label}</span>
+                  <button key={spec.label} onClick={() => setGradeFilter(active ? null : spec.label)} title="클릭하면 해당 등급 콘텐츠 보기" style={{ background: active ? spec.bg : C.panel, border: `1.5px solid ${active ? spec.color : C.border}`, borderRadius: 12, padding: '10px 12px', textAlign: 'center', cursor: 'pointer' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', background: spec.bg, color: spec.color, display: 'inline-block', marginBottom: '4px' }}>{spec.label}</span>
                     <div style={{ fontSize: 17, fontWeight: 800, color: C.ink }}>{count}<span style={{ fontSize: 11, fontWeight: 500, color: C.subLite, marginLeft: 2 }}>개</span></div>
                     <div style={{ width: '100%', height: 3.5, background: '#E7DCD3', borderRadius: 99, marginTop: 5, overflow: 'hidden' }}>
                       <div style={{ width: `${pctValue}%`, height: '100%', background: spec.color, borderRadius: 99 }} />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
+            {gradeFilter && (
+              <div className="mt-4 pt-3" style={{ borderTop: `1px dashed ${C.border}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: C.ink }}>{gradeFilter} 콘텐츠 · {gradeFilteredItems.length}건 <span style={{ fontWeight: 600, color: C.sub }}>(🎬 {gradeFilteredItems.filter(isReel).length} · 🖼️ {gradeFilteredItems.length - gradeFilteredItems.filter(isReel).length})</span></span>
+                  <button onClick={() => setGradeFilter(null)} style={{ fontSize: 11, fontWeight: 700, color: C.sub, background: 'none', border: 'none', cursor: 'pointer' }}>✕ 닫기</button>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {gradeFilteredItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '16px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>해당 등급 콘텐츠가 없습니다.</div>}
+                  {gradeFilteredItems.map((item) => <ContentCard key={'gf-' + (item.id || item.link)} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-6" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
