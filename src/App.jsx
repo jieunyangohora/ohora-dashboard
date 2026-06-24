@@ -12,7 +12,7 @@ const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, sans-ser
 const SHADOW = '0 1px 3px rgba(40,28,18,0.05)';
 
 const COUNTRIES = [ { key: 'KR', label: '한국', flag: '🇰🇷', color: '#E8546B' }, { key: 'US', label: '미국', flag: '🇺🇸', color: '#3E6FE0' } ];
-const NAV = [ { key: 'summary', label: '통합 요약', icon: LayoutDashboard }, { key: 'KR', label: '한국 대시보드', icon: Globe }, { key: 'US', label: '미국 대시보드', icon: Globe }, { key: 'feed', label: '피드 콘텐츠', icon: Rss }, { key: 'archive', label: '전체 콘텐츠 리스트', icon: Filter } ];
+const NAV = [ { key: 'KR', label: '한국 대시보드', icon: Globe }, { key: 'US', label: '미국 대시보드', icon: Globe }, { key: 'feed', label: '피드 콘텐츠', icon: Rss }, { key: 'archive', label: '전체 콘텐츠 리스트', icon: Filter } ];
 
 const ACCOUNT_METRICS = {
   reach: { label: '도달수', icon: Eye, color: '#3E8FB0' }, organicReach: { label: '오가닉 도달', icon: Leaf, color: '#2E9E89' }, views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' }, organicViews: { label: '오가닉 조회수', icon: Leaf, color: '#2E9E89' },
@@ -56,6 +56,9 @@ const metricLabels = (map) => Object.fromEntries(Object.entries(map).map(([k, v]
 const blankItem = (id, title, metricKeys) => { const base = { id, title, thumbnail: '', link: '', hypothesis: '', analysis: '', salesImpact: '', productCategory: '', productNames: [], publishDate: '', initialScore: 0, salesCount: 0, finalScore: 0 }; metricKeys.forEach((k) => { base[k] = 0; }); return base; };
 const FEED_KEYS = [...FEED_CORE, ...FEED_SUB]; const CONTENT_KEYS = [...CONTENT_CORE, ...CONTENT_SUB];
 const lastNWeeksKeys = (weekMeta, selectedWeek, n) => { const keys = weekMeta.map((w) => w.key); const idx = keys.indexOf(selectedWeek); if (idx < 0) return keys.slice(-n); return keys.slice(Math.max(0, idx - n + 1), idx + 1); };
+const currentWeekNumNow = () => { const d = new Date(), j = new Date(d.getFullYear(), 0, 1); const ord = Math.round((d.getTime() - j.getTime()) / 86400000) + 1; return Math.floor((ord - 1 + j.getDay()) / 7) + 1; };
+// 기본 선택: 현재 주차의 '이전 주차'(가장 최근 완료 주차)
+const defaultWeekKey = (meta) => { if (!meta || !meta.length) return ''; const cur = currentWeekNumNow(); const num = (k) => Number(String(k).replace(/[^0-9]/g, '')) || 0; const prev = meta.filter((m) => num(m.key) < cur); return (prev.length ? prev[prev.length - 1] : meta[meta.length - 1]).key; };
 
 const initialFeedContents = { KR: {}, US: {} }; const initialAllContents = { KR: {}, US: {} }; const initialAccountMetrics = { KR: {}, US: {} };
 const zeroAccount = () => { const o = {}; Object.keys(ACCOUNT_METRICS).forEach((k) => { o[k] = 0; }); return o; };
@@ -72,7 +75,9 @@ const normalizeGasItem = (it) => {
   const d1 = Number(it.salesConvD1 || 0), d3 = Number(it.salesConvD3 || 0), d7 = Number(it.salesConvD7 || 0);
   const cat = it.productCategory || productKeyFromType(it.productType);
   let names = it.productNames; if (!Array.isArray(names)) names = it.productName ? [String(it.productName)] : [];
-  return { ...it, productCategory: cat || '', productNames: names, salesConvD1: d1, salesConvD3: d3, salesConvD7: d7, salesCount: Number(it.salesCount || 0) || d7 };
+  const prodA7 = (it.salesProd && it.salesProd.d7) ? Number(it.salesProd.d7.a || 0) : 0;
+  const catA7 = (it.salesCat && it.salesCat.d7) ? Number(it.salesCat.d7.a || 0) : 0;
+  return { ...it, productCategory: cat || '', productNames: names, salesConvD1: d1, salesConvD3: d3, salesConvD7: d7, salesCount: Number(it.salesCount || 0) || prodA7 || catA7 };
 };
 // 'W25' → 해당 주차의 날짜 범위 (스프레드시트 WEEKNUM 기준: 일요일 시작)
 const weekRangeLabel = (wk, weekMeta) => {
@@ -552,7 +557,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
                       <YAxis yAxisId="eng" hide={true} domain={['auto', 'auto']} />
                       {/* 💡 [연동 완료] 그래프 마우스 오버 시 탑 3 콘텐츠 리스트가 툴팁으로 연동되어 노출 (클릭 가능) */}
-                      <Tooltip content={<WeeklyTrendTooltip labels={labelsA} contentsByWeek={allContents[countryKey]} resolvers={resolvers} countryKey={countryKey} />} wrapperStyle={{ pointerEvents: 'auto' }} /> 
+                      <Tooltip content={<ChartTooltip labels={labelsA} />} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
                       <Line yAxisId="left" type="monotone" dataKey="reach" name="도달수" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} /> 
                       <Line yAxisId="left" type="monotone" dataKey="views" name="조회수" stroke={ACCOUNT_METRICS.views.color} strokeWidth={2} /> 
@@ -1057,7 +1062,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
 }
 
 export default function Dashboard() {
-  const [view, setView] = useState('summary'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
+  const [view, setView] = useState('KR'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents); const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [dailyMetrics, setDailyMetrics] = useState({ KR: [], US: [] });
   const [loading, setLoading] = useState(true); const [showGasPanel, setShowGasPanel] = useState(false); const [pullStatus, setPullStatus] = useState('idle'); const [gasUrl, setGasUrl] = useState(''); const [gasInput, setGasInput] = useState(''); const [gasErr, setGasErr] = useState('');
@@ -1121,7 +1126,7 @@ export default function Dashboard() {
         if (am?.value) setAccountMetrics(JSON.parse(am.value));
         if (dm?.value) setDailyMetrics(JSON.parse(dm.value));
         if (gasR?.value) { setGasUrl(gasR.value); setGasInput(gasR.value); }
-        if (meta.length) setSelectedWeek(meta[meta.length - 1].key);
+        if (meta.length) setSelectedWeek(defaultWeekKey(meta));
       } catch (e) { console.error('load error', e); } finally { setLoading(false); }
     })();
   }, []);
@@ -1133,6 +1138,8 @@ export default function Dashboard() {
       if (!data.ok) throw new Error(data.error || 'GAS 응답 오류');
       const gasWeeks = data.weekMeta || []; const weekNum = (k) => Number(String(k).replace(/[^0-9]/g, '')) || 0;
       const nextWeekMeta = [...gasWeeks.map((g) => ({ key: g.key, month: g.month }))].sort((a, b) => weekNum(a.key) - weekNum(b.key));
+      const nextWeekKeys = nextWeekMeta.map((w) => w.key);
+      setSelectedWeek((prev) => nextWeekKeys.includes(prev) ? prev : defaultWeekKey(nextWeekMeta));
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
@@ -1227,7 +1234,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {view === 'summary' && <SummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} accountMetrics={accountMetrics} allContents={allContents} resolvers={resolvers} />}
         {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}
