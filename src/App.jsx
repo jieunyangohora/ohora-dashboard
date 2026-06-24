@@ -831,7 +831,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   );
 }
 
-function FeedView({ weekMeta, selectedWeek, feedContents, resolvers }) {
+function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnalysis }) {
   const [selectedCountry, setSelectedCountry] = useState('KR'); const weekContents = feedContents[selectedCountry]?.[selectedWeek] || [];
   const weeklyTotals = (country, week) => { const list = feedContents[country]?.[week] || []; const saves = list.reduce((s, c) => s + Number(c.saves || 0), 0); const shares = list.reduce((s, c) => s + Number(c.shares || 0), 0); const likes = list.reduce((s, c) => s + Number(c.likes || 0), 0); const comments = list.reduce((s, c) => s + Number(c.comments || 0), 0); const reach = list.reduce((s, c) => s + Number(c.reach || 0), 0); return { saves, shares, likes, comments, reach, contentsCount: list.length, engagement: likes + comments + saves + shares }; };
   return (
@@ -853,7 +853,7 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers }) {
         <HeroCard metricsMap={FEED_METRICS} mkey="shares" value={weeklyTotals(selectedCountry, selectedWeek).shares} delta={null} />
       </div>
       <div className="flex flex-col gap-2.5">
-        {weekContents.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0' }}>데이터가 없습니다.</div> : weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} grade={resolvers[selectedCountry + '_feed'] ? resolvers[selectedCountry + '_feed'](item) : null} />)}
+        {weekContents.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0' }}>데이터가 없습니다.</div> : weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} grade={resolvers[selectedCountry + '_feed'] ? resolvers[selectedCountry + '_feed'](item) : null} salesGrade={resolvers[selectedCountry + '_sales'] ? resolvers[selectedCountry + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
       </div>
     </div>
   );
@@ -1178,7 +1178,7 @@ export default function Dashboard() {
   // #6 리뷰(가설/분석/판매전환) 양방향 키인: 즉시 로컬 반영(낙관적) + GAS 저장(link 기준 누적)
   const handleEditAnalysis = useCallback((link, field, value) => {
     if (!link) return;
-    setAllContents((prev) => {
+    const applyByLink = (prev) => {
       const next = { ...prev };
       COUNTRIES.forEach((c) => {
         const country = c.key; if (!next[country]) return;
@@ -1187,9 +1187,10 @@ export default function Dashboard() {
           next[country][wk] = (next[country][wk] || []).map((it) => (it && it.link === link ? { ...it, [field]: value } : it));
         });
       });
-      try { storage.set(STORAGE_ALL_KEY, JSON.stringify(next)); } catch (e) {}
       return next;
-    });
+    };
+    setAllContents((prev) => { const next = applyByLink(prev); try { storage.set(STORAGE_ALL_KEY, JSON.stringify(next)); } catch (e) {} return next; });
+    setFeedContents((prev) => { const next = applyByLink(prev); try { storage.set(STORAGE_FEED_KEY, JSON.stringify(next)); } catch (e) {} return next; });
     syncToGAS({ type: 'analysis', field, ref: link, value });
   }, [syncToGAS]);
 
@@ -1235,7 +1236,7 @@ export default function Dashboard() {
         )}
 
         {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
-        {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} />}
+        {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}
 
         <div style={{ fontSize: 12, color: C.subLite, textAlign: 'center', marginTop: 40, padding: '24px 0', borderTop: `1px solid ${C.border}` }}>
