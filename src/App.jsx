@@ -491,6 +491,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   const hitRateDelta = (curHitRate !== null && prevHitRate !== null) ? curHitRate - prevHitRate : null;
 
   const weekItems = allContents[countryKey]?.[selectedWeek] || [];
+  const weekReelCount = weekItems.filter(isReel).length; const weekFeedCount = weekItems.length - weekReelCount;
   
   const topContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['S급', 'A+급', 'A급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
   const bottomContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['B급', 'C급', 'D급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
@@ -548,7 +549,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
-            <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={weekItems.length} delta={prevWeek ? (() => { const prev = (allContents[countryKey]?.[prevWeek] || []).length; return prev ? ((weekItems.length - prev) / prev) * 100 : null; })() : null} />
+            <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={weekItems.length} delta={prevWeek ? (() => { const prev = (allContents[countryKey]?.[prevWeek] || []).length; return prev ? ((weekItems.length - prev) / prev) * 100 : null; })() : null} sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>🎬 릴스 {weekReelCount} · 🖼️ 피드 {weekFeedCount}</span>} />
             <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={curHitRate ?? 0} delta={hitRateDelta} tooltip="⚾ 콘텐츠 타율(Hit Rate)이란?\n\n이번 주 발행된 콘텐츠 중, 채널의 평균 체급(최근 8주 기준) 이상의 도달을 달성한 성공작의 비율입니다." />
           </div>
 
