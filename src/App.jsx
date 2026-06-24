@@ -856,6 +856,7 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers }) {
 
 function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
   const [archiveCountry, setArchiveCountry] = useState('all'); const [filterMode, setFilterMode] = useState('all'); const [archType, setArchType] = useState('all'); const [archProd, setArchProd] = useState('all'); const [archSort, setArchSort] = useState('score');
+  const [archFrom, setArchFrom] = useState(''); const [archTo, setArchTo] = useState('');
   const [archGrades, setArchGrades] = useState([]);
   const toggleGrade = (label) => setArchGrades((prev) => prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]);
   const weekKeys = weekMeta.map((w) => w.key);
@@ -889,6 +890,11 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
         if (filterMode === '30' && (now - pDate) > 30 * 86400000) return false;
         if (filterMode === '90' && (now - pDate) > 90 * 86400000) return false;
         if (filterMode === 'year' && pDate.getFullYear() !== now.getFullYear()) return false;
+        if (filterMode === 'custom') {
+          var ds = String(item.publishDate).slice(0, 10);
+          if (archFrom && ds < archFrom) return false;
+          if (archTo && ds > archTo) return false;
+        }
       }
       if (archType !== 'all') {
         const itemIsReel = isReel(item);
@@ -916,7 +922,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
       if (archSort === 'sales') return salesConvScore(b) - salesConvScore(a);
       return contentScore(b) - contentScore(a);
     });
-  }, [allContents, archiveCountry, filterMode, archType, archProd, archSort, archGrades, weekKeys, resolvers]);
+  }, [allContents, archiveCountry, filterMode, archFrom, archTo, archType, archProd, archSort, archGrades, weekKeys, resolvers]);
 
   return (
     <div>
@@ -937,7 +943,15 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
           {archiveSubTab === 'list' && (
             <>
               <div className="flex flex-wrap gap-2 items-center"><span style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginRight: 8 }}>조회 기간</span>
-                {[{ key: 'all', label: '전체' }, { key: '30', label: '최근 30일' }, { key: '90', label: '최근 90일' }, { key: 'year', label: '올해' }].map((btn) => <button key={btn.key} onClick={() => setFilterMode(btn.key)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: `1px solid ${filterMode === btn.key ? C.ink : C.border}`, background: filterMode === btn.key ? C.ink : '#fff', color: filterMode === btn.key ? '#fff' : C.sub }}>{btn.label}</button>)}
+                {[{ key: 'all', label: '전체' }, { key: '30', label: '최근 30일' }, { key: '90', label: '최근 90일' }, { key: 'year', label: '올해' }, { key: 'custom', label: '📅 직접 지정' }].map((btn) => <button key={btn.key} onClick={() => setFilterMode(btn.key)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: `1px solid ${filterMode === btn.key ? C.ink : C.border}`, background: filterMode === btn.key ? C.ink : '#fff', color: filterMode === btn.key ? '#fff' : C.sub }}>{btn.label}</button>)}
+                {filterMode === 'custom' && (
+                  <span className="flex items-center gap-1.5" style={{ marginLeft: 4 }}>
+                    <input type="date" value={archFrom} onChange={(e) => setArchFrom(e.target.value)} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, background: '#fff', color: C.ink }} />
+                    <span style={{ fontSize: 12, color: C.sub }}>~</span>
+                    <input type="date" value={archTo} onChange={(e) => setArchTo(e.target.value)} style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, background: '#fff', color: C.ink }} />
+                    {(archFrom || archTo) && <button onClick={() => { setArchFrom(''); setArchTo(''); }} style={{ fontSize: 11, fontWeight: 700, padding: '5px 9px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer' }}>✕</button>}
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap gap-4 items-end pt-2 border-t border-dashed" style={{ borderColor: C.border }}>
                 <label className="flex flex-col gap-1.5"><span style={{ fontSize: 11, color: C.sub, fontWeight: 700 }}>타입 필터</span>
