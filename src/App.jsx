@@ -34,7 +34,20 @@ const numFrom = (v) => { const n = Number(String(v ?? '').replace(/[,\s%]/g, '')
 
 const isReel = (item) => { if (!item) return false; if (item.isReel !== undefined) return item.isReel; return /\/reel[s]?\//i.test(item.link || ''); };
 const contentScore = (item) => item ? (Number(item.reach || 0) + Number(item.engagement || 0)) : 0;
-const salesConvScore = (item) => item ? Number(item.salesConvD7 || 0) : 0;
+// 판매전환 증감률(Lift): 발행 직전 N일(b) → 발행 후 N일(a)
+const liftPct = (wo) => { if (!wo) return null; const b = Number(wo.b || 0), a = Number(wo.a || 0); if (b <= 0) return a > 0 ? Infinity : 0; return Math.round(((a - b) / b) * 100); };
+const liftGrade = (p) => {
+  if (p === null) return null;
+  if (p === Infinity) return { label: '신규', color: '#1D9E75', bg: '#E1F5EE' };
+  if (p >= 100) return { label: 'S급', color: '#E8546B', bg: '#FCE9EC' };
+  if (p >= 50)  return { label: 'A급', color: '#E08A2B', bg: '#FDF3E7' };
+  if (p >= 20)  return { label: 'B급', color: '#6C5CE7', bg: '#F0EEFD' };
+  if (p >= 5)   return { label: 'C급', color: '#2E9E89', bg: '#EAF6F3' };
+  return { label: 'D급', color: '#9A928A', bg: '#F5F5F5' };
+};
+// 대표 Lift: 제품 7일이 있으면 제품, 없으면 제품군 7일
+const headlineLiftWO = (item) => { if (!item) return null; const pw = item.salesProd && item.salesProd.d7; if (liftPct(pw) !== null) return pw; return (item.salesCat && item.salesCat.d7) || null; };
+const salesConvScore = (item) => { const p = liftPct(headlineLiftWO(item)); if (p === null) return -Infinity; return p === Infinity ? 1e9 : p; };
 const feedScore = (item) => item ? (Number(item.reach || 0) + Number(item.saves || 0) + Number(item.shares || 0) + Number(item.likes || 0) + Number(item.comments || 0)) : 0;
 
 const fmtMonth = (m) => { if (!m) return ''; const [y, mo] = m.split('-'); return `${y}.${mo}`; };
@@ -222,6 +235,7 @@ function ContentThumbnail({ item }) {
 const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 판매전환 리뷰']];
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
+  const [salesWin, setSalesWin] = useState('d7');
   const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '' });
   useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
@@ -246,17 +260,44 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
               </span>
             ) : null;
           })()}
-          {item.productCategory && (
-            <div className="flex items-center gap-1.5 flex-wrap" style={{ marginBottom: 6 }}>
-              <span title={"노출된 제품의 판매전환 성과\n게시일 ±N일 윈도우 내 해당 제품 판매수량(ea) 합계"} style={{ fontSize: 10, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
-              {salesGrade && Number(item.salesConvD7 || 0) > 0 && (
-                <span title={"판매전환 상대등급 (최근 30일 기준 ±7일 전환수 백분위)"} style={{ fontSize: 10, fontWeight: 900, padding: '1px 6px', borderRadius: 4, background: salesGrade.bg, color: salesGrade.color, cursor: 'help' }}>전환 {salesGrade.label} <span style={{ opacity: 0.75 }}>상위{salesGrade.pct}%</span></span>
-              )}
-              {[['±1일', item.salesConvD1], ['±3일', item.salesConvD3], ['±7일', item.salesConvD7]].map(([lab, v]) => (
-                <span key={lab} style={{ fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: '#FCE9EC', color: '#C2185B' }}>{lab} {fmt(v || 0)}건</span>
-              ))}
-            </div>
-          )}
+          {(item.salesProd || item.salesCat) ? (() => {
+            const cat = PRODUCT_CATS.find((c) => c.key === item.productCategory);
+            const rows = [];
+            if (item.salesProd) rows.push(['제품', (item.productNames && item.productNames[0]) || item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]);
+            if (item.salesCat) rows.push(['제품군', cat ? cat.label : (item.productCategory || '제품군'), item.salesCat[salesWin]]);
+            return (
+              <div style={{ marginBottom: 6 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
+                  <span title={"발행 직전 N일 대비 발행 후 N일 판매 증감률"} style={{ fontSize: 10, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
+                  <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 999, overflow: 'hidden' }}>
+                    {[['d1', '1일'], ['d3', '3일'], ['d7', '7일']].map(([k, lab]) => (
+                      <button key={k} onClick={() => setSalesWin(k)} style={{ border: 'none', padding: '1px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', background: salesWin === k ? '#C2185B' : '#fff', color: salesWin === k ? '#fff' : C.sub }}>{lab}</button>
+                    ))}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {rows.map(([kind, name, wo]) => {
+                    const p = liftPct(wo); const g = liftGrade(p);
+                    const isNew = p === Infinity;
+                    const col = p === null ? C.subLite : (isNew || p >= 0 ? '#1D9E75' : '#E24B4A');
+                    const txt = p === null ? '데이터 없음' : (isNew ? '신규 발생' : `${p > 0 ? '+' : ''}${p}%`);
+                    return (
+                      <div key={kind} className="flex items-center justify-between gap-2" style={{ fontSize: 11, background: C.panel, borderRadius: 6, padding: '3px 8px' }}>
+                        <span style={{ color: C.sub, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b style={{ color: C.ink }}>{kind}</b> {name}</span>
+                        <span className="flex items-center gap-2 flex-shrink-0">
+                          {wo && <span style={{ color: C.subLite, fontSize: 10 }}>{wo.b}→{wo.a}건</span>}
+                          <span style={{ color: col, fontWeight: 800 }}>{txt}</span>
+                          {g && <span style={{ fontWeight: 900, fontSize: 10, padding: '0 6px', borderRadius: 4, background: g.bg, color: g.color }}>{g.label}</span>}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })() : (item.productCategory && Number(item.salesConvD7 || 0) > 0 ? (
+            <div style={{ fontSize: 10.5, color: '#C2185B', marginBottom: 6 }}>💰 판매전환(±7일) {fmt(item.salesConvD7)}건 · GAS 업데이트 후 증감률 표시</div>
+          ) : null)}
           <div className="flex flex-wrap gap-x-4 gap-y-1 items-center"> {coreKeys.map((k) => <MetricPill key={k} metricsMap={metricsMap} mkey={k} value={item[k]} big />)} </div>
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 max-w-[200px] justify-end"> {subKeys.map((k) => <MetricPill key={k} metricsMap={metricsMap} mkey={k} value={item[k]} />) } </div>
