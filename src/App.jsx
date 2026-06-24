@@ -575,15 +575,15 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                       <CartesianGrid stroke={C.border} vertical={false} />
                       <XAxis dataKey="week" tick={{ fontSize: 12, fill: C.sub }} axisLine={false} tickLine={false} /> 
                       <YAxis yAxisId="left" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 10000 ? `${(v/10000).toFixed(0)}만` : v} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 100000000 ? `${(v/100000000).toFixed(0)}억` : v >= 10000 ? `${(v/10000).toFixed(0)}만` : v} />
+                      <YAxis yAxisId="inflow" hide={true} domain={['auto', 'auto']} />
                       <YAxis yAxisId="eng" hide={true} domain={['auto', 'auto']} />
-                      {/* 💡 [연동 완료] 그래프 마우스 오버 시 탑 3 콘텐츠 리스트가 툴팁으로 연동되어 노출 (클릭 가능) */}
                       <Tooltip content={<ChartTooltip labels={labelsA} />} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Line yAxisId="left" type="monotone" dataKey="reach" name="도달수" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={2.5} /> 
-                      <Line yAxisId="left" type="monotone" dataKey="views" name="조회수" stroke={ACCOUNT_METRICS.views.color} strokeWidth={2} /> 
-                      <Line yAxisId="eng" type="monotone" dataKey="engagement" name="참여수" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={2.5} dot={{ r: 4 }} /> 
-                      <Line yAxisId="right" type="monotone" dataKey="sales" name="매출" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={2.5} /> 
+                      <Line yAxisId="eng" type="monotone" dataKey="engagement" name="참여수" stroke={ACCOUNT_METRICS.engagement.color} strokeWidth={1.5} strokeDasharray="5 4" dot={false} opacity={0.65} />
+                      <Line yAxisId="left" type="monotone" dataKey="reach" name="도달수" stroke={ACCOUNT_METRICS.reach.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line yAxisId="inflow" type="monotone" dataKey="inflow" name="유입" stroke={ACCOUNT_METRICS.inflow.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line yAxisId="right" type="monotone" dataKey="sales" name="매출" stroke={ACCOUNT_METRICS.sales.color} strokeWidth={3.5} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
