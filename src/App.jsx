@@ -48,6 +48,22 @@ const liftGrade = (p) => {
 // 대표 Lift: 제품 7일이 있으면 제품, 없으면 제품군 7일
 const headlineLiftWO = (item) => { if (!item) return null; const pw = item.salesProd && item.salesProd.d7; if (liftPct(pw) !== null) return pw; return (item.salesCat && item.salesCat.d7) || null; };
 const salesConvScore = (item) => { const p = liftPct(headlineLiftWO(item)); if (p === null) return -Infinity; return p === Infinity ? 1e9 : p; };
+// 역주행: 발행 1주차(d7.a) 대비 2주차(w2a) 판매가 +10%↑ 더 늘어난 콘텐츠
+const COMEBACK_MIN_GROWTH = 10;
+const snapScore = (b) => b ? (Number(b.reach || 0) + Number(b.engagement || 0)) : 0;
+// 역주행: 1주차 성과 대비, 이후 주차(2~4주)에 성과가 +10%↑ 더 늘어난 콘텐츠
+const comebackInfo = (item) => {
+  if (!item || !item.snap || !item.snap.w1) return null;
+  const base = snapScore(item.snap.w1);
+  if (base <= 0) return null;
+  let later = 0, laterWk = '';
+  ['w4', 'w3', 'w2'].forEach((k) => { if (!later && item.snap[k]) { const v = snapScore(item.snap[k]); if (v > 0) { later = v; laterWk = k; } } });
+  if (later <= 0) return null;
+  const growth = Math.round(((later - base) / base) * 100);
+  if (growth < COMEBACK_MIN_GROWTH) return null;
+  return { base: base, later: later, laterWk: laterWk, growth: growth };
+};
+const WK_LABEL = { w2: '2주차', w3: '3주차', w4: '4주차' };
 const feedScore = (item) => item ? (Number(item.reach || 0) + Number(item.saves || 0) + Number(item.shares || 0) + Number(item.likes || 0) + Number(item.comments || 0)) : 0;
 
 const fmtMonth = (m) => { if (!m) return ''; const [y, mo] = m.split('-'); return `${y}.${mo}`; };
@@ -462,6 +478,11 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   
   const topContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['S급', 'A+급', 'A급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
   const bottomContent = useMemo(() => weekItems.filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['B급', 'C급', 'D급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 5), [weekItems, resolvers, countryKey]);
+  const comebackItems = useMemo(() => {
+    const out = [];
+    weekKeys.forEach((wk) => { if (wk === selectedWeek) return; (allContents[countryKey]?.[wk] || []).forEach((it) => { const cb = comebackInfo(it); if (cb) out.push({ item: it, cb: cb }); }); });
+    return out.sort((a, b) => b.cb.growth - a.cb.growth).slice(0, 8);
+  }, [allContents, countryKey, weekKeys, selectedWeek]);
   const localTop3 = useMemo(() => [...weekItems].filter(item => { const g = resolvers[countryKey + '_all']?.(item); return g && ['S급', 'A+급', 'A급'].includes(g.label); }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 3), [weekItems, resolvers, countryKey]);
 
   const productCatDataNow = useMemo(() => {
@@ -725,6 +746,21 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             <div className="flex flex-col gap-2.5 mt-3">
               {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
               {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
+            </div>
+          </div>
+          <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>🔁 역주행 콘텐츠 (최대 8개)</h3>
+              <GenericTooltip text={"💡 역주행 기준:\n\n지난 발행 콘텐츠 중, 발행 1주차 성과(도달+참여)보다 이후 주차(2~4주)에 +10% 이상 더 늘어난 콘텐츠입니다. (이번 주 발행 제외)"} width={300} />
+            </div>
+            <div className="flex flex-col gap-2.5 mt-3">
+              {comebackItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>역주행(1주차 이후 성과 재상승) 콘텐츠가 아직 없습니다.</div>}
+              {comebackItems.map(({ item, cb }) => (
+                <div key={'cb-' + (item.id || item.link)} style={{ position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 1, fontSize: 11, fontWeight: 800, color: '#1D9E75', background: '#E1F5EE', borderRadius: 999, padding: '2px 9px' }}>🔁 {WK_LABEL[cb.laterWk]} +{cb.growth}%</div>
+                  <ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />
+                </div>
+              ))}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -994,7 +1030,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                     <div>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] px-2 py-0.5 rounded font-bold text-white" style={{ background: item._country === 'KR' ? '#E8546B' : '#3E6FE0' }}>{item._country === 'KR' ? 'KR' : 'US'} · {item._week}</span>
-                        <div className="flex gap-1">{g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: g.bg, color: g.color, cursor: 'help' }}>{g.label} <span style={{opacity: 0.75}}>상위{g.pct}%</span></span>}{Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5' }}>🔥 1M</span>}</div>
+                        <div className="flex gap-1">{g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: g.bg, color: g.color, cursor: 'help' }}>{g.label} <span style={{opacity: 0.75}}>상위{g.pct}%</span></span>}{(() => { const sg = liftGrade(liftPct(headlineLiftWO(item))); return sg ? <span title="판매전환 등급 (발행후 7일 증감률)" style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: sg.bg, color: sg.color }}>전환 {sg.label}</span> : null; })()}{Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5' }}>🔥 1M</span>}</div>
                       </div>
                       <div className="flex gap-2 items-center mb-2">
                         {item.link ? ( <a href={item.link} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex-shrink-0"><ContentThumbnail item={item} /></a> ) : ( <ContentThumbnail item={item} /> )}
@@ -1024,7 +1060,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                     <div>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-[10px] px-2 py-0.5 rounded font-bold text-white" style={{ background: item._country === 'KR' ? '#E8546B' : '#3E6FE0' }}>{item._country === 'KR' ? 'KR' : 'US'} · {item._week}</span>
-                        <div className="flex gap-1">{g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: g.bg, color: g.color, cursor: 'help' }}>{g.label} <span style={{opacity: 0.75}}>상위{g.pct}%</span></span>}{Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5' }}>🔥 1M</span>}</div>
+                        <div className="flex gap-1">{g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: g.bg, color: g.color, cursor: 'help' }}>{g.label} <span style={{opacity: 0.75}}>상위{g.pct}%</span></span>}{(() => { const sg = liftGrade(liftPct(headlineLiftWO(item))); return sg ? <span title="판매전환 등급 (발행후 7일 증감률)" style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: sg.bg, color: sg.color }}>전환 {sg.label}</span> : null; })()}{Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '3px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5' }}>🔥 1M</span>}</div>
                       </div>
                       <div className="flex gap-2 items-center mb-2">
                         {item.link ? ( <a href={item.link} target="_blank" rel="noreferrer" className="hover:opacity-80 transition-opacity flex-shrink-0"><ContentThumbnail item={item} /></a> ) : ( <ContentThumbnail item={item} /> )}
