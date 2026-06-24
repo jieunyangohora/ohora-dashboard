@@ -920,9 +920,13 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
 
   return (
     <div>
-      <div className="flex gap-4 mb-4 border-b border-gray-200 pb-2">
-        <button onClick={() => setArchiveSubTab('list')} style={{ fontSize: 14, fontWeight: archiveSubTab === 'list' ? 800 : 600, color: archiveSubTab === 'list' ? C.accent : C.sub, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>📋 아카이브 리스트 검색</button>
-        <button onClick={() => setArchiveSubTab('hof')} style={{ fontSize: 14, fontWeight: archiveSubTab === 'hof' ? 800 : 600, color: archiveSubTab === 'hof' ? '#C9A24B' : C.sub, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}>🏆 역대 명예의 전당 (All-Time)</button>
+      <div className="flex gap-2 mb-4">
+        {[{ key: 'list', label: '📋 아카이브 리스트 검색', on: C.accent, soft: C.accentSoft }, { key: 'hof', label: '🏆 역대 명예의 전당 (All-Time)', on: '#C9A24B', soft: '#FBF4E2' }].map((t) => {
+          const active = archiveSubTab === t.key;
+          return (
+            <button key={t.key} onClick={() => setArchiveSubTab(t.key)} style={{ fontSize: 13.5, fontWeight: active ? 800 : 600, color: active ? '#fff' : C.sub, background: active ? t.on : '#fff', border: `1.5px solid ${active ? t.on : C.border}`, borderRadius: 10, cursor: 'pointer', padding: '9px 16px', boxShadow: active ? '0 2px 6px rgba(40,28,18,0.12)' : 'none', transition: 'all 0.15s' }}>{t.label}</button>
+          );
+        })}
       </div>
 
       <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, marginBottom: 20 }}>
