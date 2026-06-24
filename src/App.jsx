@@ -548,7 +548,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
-            <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={totals(selectedWeek).contentsCount} delta={wowDelta('contentsCount')} />
+            <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={weekItems.length} delta={prevWeek ? (() => { const prev = (allContents[countryKey]?.[prevWeek] || []).length; return prev ? ((weekItems.length - prev) / prev) * 100 : null; })() : null} />
             <HeroCard metricsMap={{ hitRate: { label: '콘텐츠 타율', icon: Target, color: '#2E9E89' } }} mkey="hitRate" value={curHitRate ?? 0} delta={hitRateDelta} tooltip="⚾ 콘텐츠 타율(Hit Rate)이란?\n\n이번 주 발행된 콘텐츠 중, 채널의 평균 체급(최근 8주 기준) 이상의 도달을 달성한 성공작의 비율입니다." />
           </div>
 
