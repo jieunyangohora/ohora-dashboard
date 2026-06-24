@@ -266,7 +266,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
             if (item.salesProd) rows.push(['제품', (item.productNames && item.productNames[0]) || item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]);
             if (item.salesCat) rows.push(['제품군', cat ? cat.label : (item.productCategory || '제품군'), item.salesCat[salesWin]]);
             return (
-              <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 6, maxWidth: 460 }}>
                 <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
                   <span title={"발행 직전 N일 대비 발행 후 N일 판매 증감률"} style={{ fontSize: 10, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
                   <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 999, overflow: 'hidden' }}>
