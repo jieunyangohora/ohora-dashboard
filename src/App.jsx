@@ -83,7 +83,7 @@ const STORAGE_WEEKS_KEY = 'dash2-weeks-v4'; const STORAGE_FEED_KEY = 'dash2-feed
 const PRODUCT_CATS = [ { key: 'gelPressOn', label: '젤프레스온', color: '#E8546B' }, { key: 'hardener', label: '강화제', color: '#6C5CE7' }, { key: 'gelStrip', label: '젤스트립', color: '#2E9E89' }, { key: 'otherCare', label: '기타케어류', color: '#C9A24B' } ];
 
 // GAS의 제품 타입(원문) → 대시보드 제품군 key 매핑
-const PTYPE_TO_KEY = { '젤스트립': 'gelStrip', '젤프레스온': 'gelPressOn', '프레스온': 'gelPressOn', '리얼젤팁': 'gelPressOn', '젤프레스온/리얼젤팁': 'gelPressOn', '강화제': 'hardener', '기타 케어류': 'otherCare', '기타케어류': 'otherCare', '기타 케어': 'otherCare', 'strengthener': 'hardener', 'Strengthener': 'hardener', 'hardener': 'hardener', 'Hardener': 'hardener', 'strip': 'gelStrip', 'Strip': 'gelStrip', 'Gel Strip': 'gelStrip', 'gel strip': 'gelStrip', 'press on': 'gelPressOn', 'Press On': 'gelPressOn', 'Press-On': 'gelPressOn', 'press-on': 'gelPressOn', 'presson': 'gelPressOn', 'Presson': 'gelPressOn', 'other care': 'otherCare', 'Other Care': 'otherCare' };
+const PTYPE_TO_KEY = { '젤스트립': 'gelStrip', '젤프레스온': 'gelPressOn', '프레스온': 'gelPressOn', '리얼젤팁': 'gelPressOn', '젤프레스온/리얼젤팁': 'gelPressOn', '강화제': 'hardener', '기타 케어류': 'otherCare', '기타케어류': 'otherCare', '기타 케어': 'otherCare', 'strengthener': 'hardener', 'Strengthener': 'hardener', 'hardener': 'hardener', 'Hardener': 'hardener', 'strip': 'gelStrip', 'Strip': 'gelStrip', 'Gel Strip': 'gelStrip', 'gel strip': 'gelStrip', 'press on': 'gelPressOn', 'Press On': 'gelPressOn', 'Press-On': 'gelPressOn', 'press-on': 'gelPressOn', 'presson': 'gelPressOn', 'Presson': 'gelPressOn', 'other care': 'otherCare', 'Other Care': 'otherCare', '케어류': 'otherCare', '케어': 'otherCare', '툴': 'otherCare', '기타': 'otherCare', 'Care&Tool': 'otherCare', 'care&tool': 'otherCare', 'Tool': 'otherCare', 'tool': 'otherCare' };
 const productKeyFromType = (t) => { const s = String(t || '').trim(); if (PTYPE_TO_KEY[s]) return PTYPE_TO_KEY[s]; if (PRODUCT_CATS.some((c) => c.key === s)) return s; return ''; };
 // GAS 콘텐츠 아이템(productType/productName/salesConvD*)을 앱 필드(productCategory/productNames/salesCount)로 정규화
 const normalizeGasItem = (it) => {
@@ -966,7 +966,7 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnaly
         <HeroCard metricsMap={FEED_METRICS} mkey="shares" value={weeklyTotals(selectedCountry, selectedWeek).shares} delta={null} />
       </div>
       <div className="flex flex-col gap-2.5">
-        {weekContents.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0' }}>데이터가 없습니다.</div> : weekContents.map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} grade={resolvers[selectedCountry + '_feed'] ? resolvers[selectedCountry + '_feed'](item) : null} salesGrade={resolvers[selectedCountry + '_sales'] ? resolvers[selectedCountry + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
+        {weekContents.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0' }}>데이터가 없습니다.</div> : [...weekContents].sort((a, b) => feedScore(b) - feedScore(a)).map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} grade={resolvers[selectedCountry + '_feed'] ? resolvers[selectedCountry + '_feed'](item) : null} salesGrade={resolvers[selectedCountry + '_sales'] ? resolvers[selectedCountry + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
       </div>
     </div>
   );
