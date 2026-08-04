@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { Bookmark, Share2, UserCheck, Eye, Heart, MessageCircle, UserPlus, Plus, Trash2, Pencil, Check, X, ExternalLink, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, ClipboardPaste, ArrowDownToLine, NotebookPen, Activity, PlayCircle, MousePointerClick, LayoutDashboard, Globe, Rss, Lightbulb, Rocket, AlertCircle, RefreshCw, Settings, Target, Leaf, FileText, Filter } from 'lucide-react';
 
@@ -83,7 +83,7 @@ const STORAGE_WEEKS_KEY = 'dash2-weeks-v4'; const STORAGE_FEED_KEY = 'dash2-feed
 const PRODUCT_CATS = [ { key: 'gelPressOn', label: '젤프레스온', color: '#E8546B' }, { key: 'hardener', label: '강화제', color: '#6C5CE7' }, { key: 'gelStrip', label: '젤스트립', color: '#2E9E89' }, { key: 'otherCare', label: '기타케어류', color: '#C9A24B' } ];
 
 // GAS의 제품 타입(원문) → 대시보드 제품군 key 매핑
-const PTYPE_TO_KEY = { '젤스트립': 'gelStrip', '젤프레스온': 'gelPressOn', '프레스온': 'gelPressOn', '리얼젤팁': 'gelPressOn', '젤프레스온/리얼젤팁': 'gelPressOn', '강화제': 'hardener', '기타 케어류': 'otherCare', '기타케어류': 'otherCare', '기타 케어': 'otherCare' };
+const PTYPE_TO_KEY = { '젤스트립': 'gelStrip', '젤프레스온': 'gelPressOn', '프레스온': 'gelPressOn', '리얼젤팁': 'gelPressOn', '젤프레스온/리얼젤팁': 'gelPressOn', '강화제': 'hardener', '기타 케어류': 'otherCare', '기타케어류': 'otherCare', '기타 케어': 'otherCare', 'strengthener': 'hardener', 'Strengthener': 'hardener', 'hardener': 'hardener', 'Hardener': 'hardener', 'strip': 'gelStrip', 'Strip': 'gelStrip', 'Gel Strip': 'gelStrip', 'gel strip': 'gelStrip', 'press on': 'gelPressOn', 'Press On': 'gelPressOn', 'Press-On': 'gelPressOn', 'press-on': 'gelPressOn', 'presson': 'gelPressOn', 'Presson': 'gelPressOn', 'other care': 'otherCare', 'Other Care': 'otherCare' };
 const productKeyFromType = (t) => { const s = String(t || '').trim(); if (PTYPE_TO_KEY[s]) return PTYPE_TO_KEY[s]; if (PRODUCT_CATS.some((c) => c.key === s)) return s; return ''; };
 // GAS 콘텐츠 아이템(productType/productName/salesConvD*)을 앱 필드(productCategory/productNames/salesCount)로 정규화
 const normalizeGasItem = (it) => {
@@ -256,7 +256,7 @@ function ContentThumbnail({ item }) {
 const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 판매전환 리뷰']];
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
-  const [salesWin, setSalesWin] = useState('d7');
+  const [salesWin, setSalesWin] = useState('d3');
   const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '' });
   useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
@@ -285,7 +285,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
           {(item.salesProd || item.salesCat) ? (() => {
             const cat = PRODUCT_CATS.find((c) => c.key === item.productCategory);
             const rows = [];
-            if (item.salesProd) rows.push(['제품', (item.productNames && item.productNames[0]) || item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]);
+            if (item.salesProd) rows.push(['제품', item.productCode || '노출 제품', item.salesProd[salesWin]]);
             if (item.salesCat) rows.push(['제품군', cat ? cat.label : (item.productCategory || '제품군'), item.salesCat[salesWin]]);
             return (
               <div style={{ marginBottom: 6, maxWidth: 460 }}>
@@ -493,6 +493,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
   const weekItems = allContents[countryKey]?.[selectedWeek] || [];
   const weekReelCount = weekItems.filter(isReel).length; const weekFeedCount = weekItems.length - weekReelCount;
+  const [reelsOnly, setReelsOnly] = useState(true);
   const [gradeFilter, setGradeFilter] = useState(null);
   const gradeFilteredItems = useMemo(() => gradeFilter ? weekItems.filter((item) => resolvers[countryKey + '_all']?.(item)?.label === gradeFilter).sort((a, b) => contentScore(b) - contentScore(a)) : [], [gradeFilter, weekItems, resolvers, countryKey]);
   
@@ -634,12 +635,14 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                       <div className="flex flex-col gap-2">
                         {selectedWeekTopContents.map((item, idx) => {
                           const g = resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null;
+                          const sg = liftGrade(liftPct(headlineLiftWO(item)));
                           return (
                             <div key={item.id || idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border" style={{ borderColor: C.border }}>
                               <div className="flex items-center gap-2 min-w-0">
                                 <span style={{ fontSize: 12, fontWeight: 800, color: C.accent }}>TOP {idx + 1}</span>
                                 <a href={item.link || undefined} target="_blank" rel="noreferrer" className="text-[12.5px] font-bold text-gray-800 hover:text-blue-600 truncate underline flex items-center gap-1">
                                   {g && <span title={GRADE_TOOLTIP} style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: g.bg, color: g.color, marginRight: '4px', display: 'inline-block', cursor: 'help' }}>{g.label} 상위{g.pct}%</span>}
+                                  {sg && <span title="판매전환 등급" style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: sg.bg, color: sg.color, marginRight: '4px', display: 'inline-block' }}>전환 {sg.label}</span>}
                                   {Number(item.views || 0) >= 1000000 && <span style={{ fontSize: '9px', fontWeight: '900', padding: '1px 4px', borderRadius: '4px', background: '#FFF0F2', color: '#FF003C', border: '1px solid #FFCCD5', marginRight: '4px', display: 'inline-block' }}>🔥 100만뷰</span>}
                                   {item.title ? (item.title.substring(0, 18) + (item.title.length > 18 ? '…' : '')) : '(제목 없음)'}
                                   <ExternalLink size={11} />
@@ -813,14 +816,25 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
       {subView === 'content' && (
         <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>🎬 릴스만 보기</span>
+            <div
+              onClick={() => setReelsOnly(v => !v)}
+              role="switch"
+              aria-checked={reelsOnly}
+              style={{ width: 42, height: 24, borderRadius: 12, background: reelsOnly ? C.ink : C.borderStrong, position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
+            >
+              <div style={{ position: 'absolute', top: 3, left: reelsOnly ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' }} />
+            </div>
+            <span style={{ fontSize: 12, color: reelsOnly ? C.ink : C.subLite, fontWeight: 600 }}>{reelsOnly ? 'ON' : 'OFF'}</span>
+          </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>🏆 상위 성공 콘텐츠 (최대 5개)</h3>
               <GenericTooltip text="💡 상/하위 콘텐츠 분류 기준:\n\n최근 30일 전체 데이터 기준 상대평가 컷오프를 통과한 에이스 기획입니다.\n\n• 노출 조건: S급 / A+급 / A급 기획물 📈" width={290} />
             </div>
             <div className="flex flex-col gap-2.5 mt-3">
-              {topContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-              {topContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
+              {(() => { const items = reelsOnly ? topContent.filter(isReel) : topContent; return items.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div> : items.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />); })()}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -829,8 +843,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
               <GenericTooltip text="💡 하위 보완 분류 기준:\n\n성과 화력이 최근 30일 누적 표준선(상위 15% 컷오프) 미만인 B급~D급 판정을 받아 모니터링 및 기획 튜닝이 권장되는 리스트입니다." width={300} />
             </div>
             <div className="flex flex-col gap-2.5 mt-3">
-              {bottomContent.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div>}
-              {bottomContent.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
+              {(() => { const items = reelsOnly ? bottomContent.filter(isReel) : bottomContent; return items.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>조건을 만족하는 콘텐츠가 없습니다.</div> : items.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />); })()}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
@@ -839,32 +852,11 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
               <GenericTooltip text={"💡 역주행 기준:\n\n지난 발행 콘텐츠 중, 발행 1주차 성과(도달+참여)보다 이후 주차(2~4주)에 +10% 이상 더 늘어난 콘텐츠입니다. (이번 주 발행 제외)"} width={300} />
             </div>
             <div className="flex flex-col gap-2.5 mt-3">
-              {comebackItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>역주행(1주차 이후 성과 재상승) 콘텐츠가 아직 없습니다.</div>}
-              {comebackItems.map(({ item, cb }) => (
-                <div key={'cb-' + (item.id || item.link)} style={{ position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: 8, right: 12, zIndex: 1, fontSize: 11, fontWeight: 800, color: '#1D9E75', background: '#E1F5EE', borderRadius: 999, padding: '2px 9px' }}>🔁 {WK_LABEL[cb.laterWk]} +{cb.growth}%</div>
-                  <ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />
-                </div>
-              ))}
+              {(() => { const items = reelsOnly ? comebackItems.filter(({ item }) => isReel(item)) : comebackItems; return items.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>역주행(1주차 이후 성과 재상승) 콘텐츠가 아직 없습니다.</div> : items.map(({ item, cb }) => (<div key={'cb-' + (item.id || item.link)} style={{ position: 'relative' }}><div style={{ position: 'absolute', top: 8, right: 12, zIndex: 1, fontSize: 11, fontWeight: 800, color: '#1D9E75', background: '#E1F5EE', borderRadius: 999, padding: '2px 9px' }}>🔁 {WK_LABEL[cb.laterWk]} +{cb.growth}%</div><ContentCard item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} /></div>)); })()}
             </div>
           </div>
           <div className="mb-8" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
-            <button onClick={() => setShowAllList(!showAllList)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>이번 주 전체 콘텐츠 리스트 · {selectedWeek} ({weekItems.length}건)</h3>
-              {showAllList ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}
-            </button>
-            {showAllList && (
-              <div style={{ marginTop: 12 }}>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <ImportSection week={selectedWeek} fields={ALL_IMPORT_FIELDS} guess={ALL_GUESS} mappingStorageKey={`dash2-all-mapping-${countryKey}`} buildItem={buildAllItem} onImport={importAllItems} />
-                  <button onClick={addAllItem} className="flex items-center gap-1" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff', height: 36 }}><Plus size={14} /> 콘텐츠 추가</button>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  {weekItems.length === 0 && <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 콘텐츠가 없습니다.</div>}
-                  {weekItems.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
-                </div>
-              </div>
-            )}
+            {(() => { const displayList = reelsOnly ? weekItems.filter(isReel) : weekItems; return (<><button onClick={() => setShowAllList(!showAllList)} className="flex items-center justify-between w-full" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}><h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>이번 주 전체 콘텐츠 리스트 · {selectedWeek} ({displayList.length}건)</h3>{showAllList ? <ChevronUp size={18} color={C.sub} /> : <ChevronDown size={18} color={C.sub} />}</button>{showAllList && (<div style={{ marginTop: 12 }}><div className="flex flex-wrap gap-2 mb-3"><ImportSection week={selectedWeek} fields={ALL_IMPORT_FIELDS} guess={ALL_GUESS} mappingStorageKey={`dash2-all-mapping-${countryKey}`} buildItem={buildAllItem} onImport={importAllItems} /><button onClick={addAllItem} className="flex items-center gap-1" style={{ fontSize: 13, fontWeight: 700, padding: '7px 12px', borderRadius: 8, border: 'none', background: C.ink, color: '#fff', height: 36 }}><Plus size={14} /> 콘텐츠 추가</button></div><div className="flex flex-col gap-2.5">{displayList.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0', border: `1px dashed ${C.border}`, borderRadius: 12 }}>등록된 콘텐츠가 없습니다.</div> : displayList.map((item) => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all'] ? resolvers[countryKey + '_all'](item) : null} salesGrade={resolvers[countryKey + '_sales'] ? resolvers[countryKey + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}</div></div>)}</>); })()}
           </div>
         </div>
       )}
@@ -1196,6 +1188,7 @@ export default function Dashboard() {
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents); const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [dailyMetrics, setDailyMetrics] = useState({ KR: [], US: [] });
   const [loading, setLoading] = useState(true); const [showGasPanel, setShowGasPanel] = useState(false); const [pullStatus, setPullStatus] = useState('idle'); const [gasUrl, setGasUrl] = useState(''); const [gasInput, setGasInput] = useState(''); const [gasErr, setGasErr] = useState('');
+  const isPullingRef = useRef(false);
 
   const syncToGAS = useCallback(async (payload) => { if (!gasUrl) return; try { await fetch(gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) }); } catch (e) {} }, [gasUrl]);
   const persist = useCallback(async (key, value, setter) => { setter(value); try { await storage.set(key, JSON.stringify(value)); } catch (e) {} }, []);
@@ -1255,14 +1248,18 @@ export default function Dashboard() {
         }
         if (am?.value) setAccountMetrics(JSON.parse(am.value));
         if (dm?.value) setDailyMetrics(JSON.parse(dm.value));
-        if (gasR?.value) { setGasUrl(gasR.value); setGasInput(gasR.value); }
+        const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxBQQ2gFVTbK9Kv4mZGi5TzNSCshjPHNxkDy7u3eF3IYEnOp9rzGdgp_ut5iJqZc6mZ/exec';
+        const resolvedUrl = gasR?.value || DEFAULT_GAS_URL;
+        setGasUrl(resolvedUrl); setGasInput(resolvedUrl);
         if (meta.length) setSelectedWeek(defaultWeekKey(meta));
       } catch (e) { console.error('load error', e); } finally { setLoading(false); }
     })();
   }, []);
 
   const pullFromGAS = useCallback(async () => {
-    if (!gasUrl) return; setPullStatus('loading');
+    if (!gasUrl || isPullingRef.current) return;
+    isPullingRef.current = true;
+    setPullStatus('loading');
     try {
       const res = await fetch(`${gasUrl}?type=all&weeks=52`); const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'GAS 응답 오류');
@@ -1301,6 +1298,7 @@ export default function Dashboard() {
       await persist('dash2-daily-metrics-v4', nextDaily, setDailyMetrics);
       setPullStatus('done'); setTimeout(() => setPullStatus('idle'), 4000);
     } catch (e) { setPullStatus('error'); setGasErr(e.message); }
+    finally { isPullingRef.current = false; }
   }, [gasUrl, accountMetrics, allContents, feedContents, persist]);
 
   const saveGasUrl = async () => { const url = gasInput.trim(); setGasUrl(url); try { await storage.set(STORAGE_GAS_URL_KEY, url); } catch (e) {} setShowGasPanel(false); };
