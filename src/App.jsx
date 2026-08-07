@@ -626,19 +626,60 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             </div>
 
             {/* KPI 타일 */}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {[
-                { label: '총 도달', value: fmt(totals(selectedWeek).reach), color: '#3E8FB0' },
-                { label: '오가닉 도달', value: fmt(totals(selectedWeek).organicReach), color: '#2E9E89' },
-                { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B' },
-                { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89' },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '8px 14px', flex: '1 1 110px', border: '1px solid #E8E4FF', minWidth: 100 }}>
-                  <div style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 700, marginBottom: 3 }}>{label}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color, letterSpacing: '-0.01em' }}>{value}</div>
+            {(() => {
+              const monthOfSelected = weekMeta.find(w => w.key === selectedWeek)?.month;
+              const elapsedMonthWeeks = monthOfSelected
+                ? weekMeta.filter(w => w.month === monthOfSelected && weekKeys.indexOf(w.key) <= weekKeys.indexOf(selectedWeek))
+                : [];
+              const avgMonthRate = (rateKey) => {
+                if (!elapsedMonthWeeks.length) return null;
+                const valid = elapsedMonthWeeks.filter(w => Number(totals(w.key)[rateKey] || 0) > 0);
+                if (!valid.length) return null;
+                return valid.reduce((s, w) => s + Number(totals(w.key)[rateKey] || 0), 0) / valid.length;
+              };
+              const salesMonthlyProj = avgMonthRate('salesAchieveRate');
+              const inflowMonthlyProj = avgMonthRate('inflowAchieveRate');
+              const kpiTiles = [
+                { label: '총 도달', value: fmt(totals(selectedWeek).reach), color: '#3E8FB0', wowKey: 'reach', achieveRate: null, monthlyProj: null },
+                { label: '오가닉 도달', value: fmt(totals(selectedWeek).organicReach), color: '#2E9E89', wowKey: 'organicReach', achieveRate: null, monthlyProj: null },
+                { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B', wowKey: 'sales', achieveRate: totals(selectedWeek).salesAchieveRate, monthlyProj: salesMonthlyProj },
+                { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89', wowKey: 'inflow', achieveRate: totals(selectedWeek).inflowAchieveRate, monthlyProj: inflowMonthlyProj },
+              ];
+              const rateColor = (v) => v == null ? '#9A928A' : v >= 100 ? '#2E9E89' : v >= 80 ? '#E0833A' : '#E8546B';
+              const wowColor = (v) => v == null ? '#9A928A' : v > 0 ? '#2E9E89' : v < 0 ? '#E8546B' : '#9A928A';
+              const wowLabel = (v) => v == null ? '—' : `${v > 0 ? '▲' : v < 0 ? '▼' : ''}${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+              return (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj }) => {
+                    const wow = wowDelta(wowKey);
+                    return (
+                      <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '8px 14px', flex: '1 1 110px', border: '1px solid #E8E4FF', minWidth: 100 }}>
+                        <div style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 17, fontWeight: 800, color, letterSpacing: '-0.01em', marginBottom: 5 }}>{value}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid #F0EDFF', paddingTop: 5 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>전주 대비</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: wowColor(wow) }}>{wowLabel(wow)}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(achieveRate != null && Number(achieveRate) > 0 ? Number(achieveRate) : null) }}>
+                              {achieveRate != null && Number(achieveRate) > 0 ? `${Number(achieveRate).toFixed(0)}%` : '—'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(monthlyProj) }}>
+                              {monthlyProj != null ? `${Math.round(monthlyProj)}%` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             {/* 분석 내용 영역 */}
             {aiEditMode ? (
