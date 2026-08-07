@@ -465,7 +465,7 @@ function SummaryView({ weekMeta, selectedWeek, accountMetrics, allContents, reso
   );
 }
 
-function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, weeklyCatSales, resolvers, onEditAnalysis, gasUrl }) {
+function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, weeklyCatSales, monthlyTargets, resolvers, onEditAnalysis, gasUrl }) {
   const labelsA = useMemo(() => metricLabels(ACCOUNT_METRICS), []);
   const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
@@ -628,29 +628,43 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             {/* KPI 타일 */}
             {(() => {
               const monthOfSelected = weekMeta.find(w => w.key === selectedWeek)?.month;
+              const monthTargets = (monthlyTargets?.[countryKey]?.[monthOfSelected]) || {};
               const elapsedMonthWeeks = monthOfSelected
                 ? weekMeta.filter(w => w.month === monthOfSelected && weekKeys.indexOf(w.key) <= weekKeys.indexOf(selectedWeek))
                 : [];
-              const avgMonthRate = (rateKey) => {
-                if (!elapsedMonthWeeks.length) return null;
-                const valid = elapsedMonthWeeks.filter(w => Number(totals(w.key)[rateKey] || 0) > 0);
-                if (!valid.length) return null;
-                return valid.reduce((s, w) => s + Number(totals(w.key)[rateKey] || 0), 0) / valid.length;
+              const totalMonthWeeks = monthOfSelected
+                ? weekMeta.filter(w => w.month === monthOfSelected)
+                : [];
+
+              // 월 예상 달성: 경과 주차 합계를 페이스로 환산 → 월간 목표 대비
+              const monthlyProj = (metricKey, targetKey) => {
+                const target = monthTargets[targetKey];
+                if (!target || !elapsedMonthWeeks.length || !totalMonthWeeks.length) return null;
+                const actualSum = elapsedMonthWeeks.reduce((s, w) => s + Number(totals(w.key)[metricKey] || 0), 0);
+                const projected = (actualSum / elapsedMonthWeeks.length) * totalMonthWeeks.length;
+                return Math.round((projected / target) * 100);
               };
-              const salesMonthlyProj = avgMonthRate('salesAchieveRate');
-              const inflowMonthlyProj = avgMonthRate('inflowAchieveRate');
+
+              // 주간 달성률 (weekly achieve rate from GROWTH sheet)
+              const weeklyRate = (key) => {
+                const v = Number(totals(selectedWeek)[key] || 0);
+                return v > 0 ? v : null;
+              };
+
               const kpiTiles = [
-                { label: '총 도달', value: fmt(totals(selectedWeek).reach), color: '#3E8FB0', wowKey: 'reach', achieveRate: null, monthlyProj: null },
-                { label: '오가닉 도달', value: fmt(totals(selectedWeek).organicReach), color: '#2E9E89', wowKey: 'organicReach', achieveRate: null, monthlyProj: null },
-                { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B', wowKey: 'sales', achieveRate: totals(selectedWeek).salesAchieveRate, monthlyProj: salesMonthlyProj },
-                { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89', wowKey: 'inflow', achieveRate: totals(selectedWeek).inflowAchieveRate, monthlyProj: inflowMonthlyProj },
+                { label: '총 조회수', value: fmt(totals(selectedWeek).views), color: '#4C6FBF', wowKey: 'views', achieveRate: weeklyRate('viewsAchieveRate'), monthlyProj: monthlyProj('views', 'viewsTarget') },
+                { label: '오가닉 조회수', value: fmt(totals(selectedWeek).organicViews), color: '#2E9E89', wowKey: 'organicViews', achieveRate: weeklyRate('organicViewsAchieveRate'), monthlyProj: monthlyProj('organicViews', 'organicViewsTarget') },
+                { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B', wowKey: 'sales', achieveRate: weeklyRate('salesAchieveRate'), monthlyProj: monthlyProj('sales', 'salesTarget') },
+                { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89', wowKey: 'inflow', achieveRate: weeklyRate('inflowAchieveRate'), monthlyProj: monthlyProj('inflow', 'inflowTarget') },
               ];
+
               const rateColor = (v) => v == null ? '#9A928A' : v >= 100 ? '#2E9E89' : v >= 80 ? '#E0833A' : '#E8546B';
               const wowColor = (v) => v == null ? '#9A928A' : v > 0 ? '#2E9E89' : v < 0 ? '#E8546B' : '#9A928A';
               const wowLabel = (v) => v == null ? '—' : `${v > 0 ? '▲' : v < 0 ? '▼' : ''}${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+
               return (
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj }) => {
+                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp }) => {
                     const wow = wowDelta(wowKey);
                     return (
                       <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '8px 14px', flex: '1 1 110px', border: '1px solid #E8E4FF', minWidth: 100 }}>
@@ -663,14 +677,14 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(achieveRate != null && Number(achieveRate) > 0 ? Number(achieveRate) : null) }}>
-                              {achieveRate != null && Number(achieveRate) > 0 ? `${Number(achieveRate).toFixed(0)}%` : '—'}
+                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(achieveRate) }}>
+                              {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
                             </span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(monthlyProj) }}>
-                              {monthlyProj != null ? `${Math.round(monthlyProj)}%` : '—'}
+                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(mp) }}>
+                              {mp != null ? `${mp}%` : '—'}
                             </span>
                           </div>
                         </div>
@@ -713,8 +727,8 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
           </div>
           <SectionLabel color="#3E8FB0">채널 지표</SectionLabel>
           <div className="flex flex-wrap gap-3 mb-4">
-            <ReachOrganicCard mkey="reach" organicKey="organicReach" value={totals(selectedWeek).reach} organicValue={totals(selectedWeek).organicReach} delta={wowDelta('reach')} organicDelta={wowDelta('organicReach')} />
             <ReachOrganicCard mkey="views" organicKey="organicViews" value={totals(selectedWeek).views} organicValue={totals(selectedWeek).organicViews} delta={wowDelta('views')} organicDelta={wowDelta('organicViews')} />
+            <ReachOrganicCard mkey="reach" organicKey="organicReach" value={totals(selectedWeek).reach} organicValue={totals(selectedWeek).organicReach} delta={wowDelta('reach')} organicDelta={wowDelta('organicReach')} />
             <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
@@ -1388,6 +1402,7 @@ export default function Dashboard() {
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents); const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [dailyMetrics, setDailyMetrics] = useState({ KR: [], US: [] });
   const [weeklyCatSales, setWeeklyCatSales] = useState({ KR: {}, US: {} });
+  const [monthlyTargets, setMonthlyTargets] = useState({ KR: {}, US: {} });
   const [loading, setLoading] = useState(true); const [showGasPanel, setShowGasPanel] = useState(false); const [pullStatus, setPullStatus] = useState('idle'); const [gasUrl, setGasUrl] = useState(''); const [gasInput, setGasInput] = useState(''); const [gasErr, setGasErr] = useState('');
   const isPullingRef = useRef(false);
 
@@ -1499,6 +1514,7 @@ export default function Dashboard() {
       await persist(STORAGE_WEEKS_KEY, nextWeekMeta, setWeekMeta); await persist(STORAGE_ACCOUNT_KEY, nextAccount, setAccountMetrics); await persist(STORAGE_ALL_KEY, nextAll, setAllContents); await persist(STORAGE_FEED_KEY, nextFeed, setFeedContents);
       await persist('dash2-daily-metrics-v4', nextDaily, setDailyMetrics);
       if (data.weeklyCatSales) await persist('dash2-weekly-cat-sales-v4', data.weeklyCatSales, setWeeklyCatSales);
+      if (data.monthlyTargets) setMonthlyTargets(data.monthlyTargets);
       setPullStatus('done'); setTimeout(() => setPullStatus('idle'), 4000);
     } catch (e) { setPullStatus('error'); setGasErr(e.message); }
     finally { isPullingRef.current = false; }
@@ -1566,7 +1582,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} weeklyCatSales={weeklyCatSales} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
+        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} weeklyCatSales={weeklyCatSales} monthlyTargets={monthlyTargets} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}
 

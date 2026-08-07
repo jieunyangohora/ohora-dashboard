@@ -130,6 +130,7 @@ function doGet(e) {
     }
 
     if (param === 'debugAccount') return json(buildAccountMetrics());
+    if (param === 'debugMonthly') return json(debugMonthlySheet_());
 
     // US 게시물 시트 컬럼 위치 확인 (product type/code/name 헤더가 어디 있는지)
     if (param === 'debugUSColumns') {
@@ -366,6 +367,7 @@ function doGet(e) {
     result.weeklySalesCount = getWeeklySalesCount();
     result.dailyMetrics     = buildDailyMetrics(krSalesMap, usSalesMap);
     result.accountMetrics   = buildAccountMetrics();
+    result.monthlyTargets   = buildMonthlyTargets();
 
     var allWeeks = {};
     ['KR','US'].forEach(function(c) {
@@ -589,7 +591,12 @@ function buildAccountMetrics() {
     }
     if (headerRow<0) return;
     var labelOf=function(r){ for(var c=0;c<3;c++){var s=String(vals[r][c]||'').trim();if(s)return s;} return ''; };
-    var F={'달성 매출':'sales','매출 달성률':'salesAchieveRate','달성 유입':'inflow','유입 달성률':'inflowAchieveRate'};
+    var F={
+      '달성 매출':'sales','매출 달성률':'salesAchieveRate',
+      '달성 유입':'inflow','유입 달성률':'inflowAchieveRate',
+      '조회수 달성률':'viewsAchieveRate','달성 조회수 달성률':'viewsAchieveRate',
+      '오가닉 조회수 달성률':'organicViewsAchieveRate','오가닉 달성률':'organicViewsAchieveRate'
+    };
     for (var r=headerRow+1;r<vals.length;r++) {
       var f=F[labelOf(r)]; if(!f) continue;
       Object.keys(colWeek).forEach(function(cs){ var c=parseInt(cs),wk=colWeek[c]; if(!out[country][wk])out[country][wk]={}; out[country][wk][f]=f.indexOf('Rate')>=0?pctNum(vals[r][c]):toNum(vals[r][c]); });
@@ -613,6 +620,71 @@ function buildAccountMetrics() {
     });
   });
   return out;
+}
+
+// ============================================================
+// 월간 목표치 (RAW_그로스_month 탭)
+// ============================================================
+function buildMonthlyTargets() {
+  var out = { KR: {}, US: {} };
+  var ss = getS();
+  var sh = ss.getSheetByName('RAW_그로스_month');
+  if (!sh || sh.getLastRow() < 2) return out;
+  var lr = sh.getLastRow(), lc = sh.getLastColumn();
+  var vals = sh.getRange(1, 1, Math.min(lr, 60), Math.min(lc, 30)).getValues();
+
+  // 헤더 행 탐색: YYYY-MM 또는 YYYY.MM 형식의 월 키 3개 이상 있는 행
+  var MONTH_RE = /^(20\d{2})[-./](0?[1-9]|1[0-2])$/;
+  var headerRow = -1, colMonth = {};
+  for (var r = 0; r < Math.min(vals.length, 6); r++) {
+    var cnt = 0, cm = {};
+    for (var c = 0; c < vals[r].length; c++) {
+      var s = String(vals[r][c] || '').trim();
+      if (MONTH_RE.test(s)) {
+        var parts = s.split(/[-./]/);
+        var mk = parts[0] + '-' + (parts[1].length === 1 ? '0' + parts[1] : parts[1]);
+        cm[c] = mk; cnt++;
+      }
+    }
+    if (cnt >= 2) { headerRow = r; colMonth = cm; break; }
+  }
+  if (headerRow < 0) return out;
+
+  // 라벨 → 필드 매핑 (시트에서 쓰는 라벨명에 맞춰 필요 시 추가)
+  var LABEL_F = {
+    '조회수 목표':'viewsTarget','목표 조회수':'viewsTarget','views 목표':'viewsTarget',
+    '오가닉 조회수 목표':'organicViewsTarget','목표 오가닉 조회수':'organicViewsTarget',
+    '매출 목표':'salesTarget','목표 매출':'salesTarget',
+    '유입 목표':'inflowTarget','목표 유입':'inflowTarget',
+    // 오가닉 달성률처럼 쓰는 경우 대비
+    '조회수':'viewsTarget','오가닉 조회수':'organicViewsTarget','매출':'salesTarget','유입':'inflowTarget'
+  };
+  var labelOf = function(row) {
+    for (var c = 0; c < 3; c++) { var s = String(row[c] || '').trim(); if (s) return s; }
+    return '';
+  };
+  // country 컬럼 탐색 (첫 번째 컬럼에 'KR'/'US' 등이 있으면 해당 행은 해당 국가로 처리)
+  var curCountry = 'KR'; // 기본값: KR
+  for (var r2 = headerRow + 1; r2 < vals.length; r2++) {
+    var rowCountry = String(vals[r2][0] || '').trim().toUpperCase();
+    if (rowCountry === 'KR' || rowCountry === 'US') { curCountry = rowCountry; continue; }
+    var lbl = labelOf(vals[r2]);
+    var f = LABEL_F[lbl]; if (!f) continue;
+    Object.keys(colMonth).forEach(function(cs) {
+      var c = parseInt(cs), mo = colMonth[c];
+      if (!out[curCountry][mo]) out[curCountry][mo] = {};
+      out[curCountry][mo][f] = toNum(vals[r2][c]);
+    });
+  }
+  return out;
+}
+
+// RAW_그로스_month 구조 디버그
+function debugMonthlySheet_() {
+  var sh = getS().getSheetByName('RAW_그로스_month');
+  if (!sh) return { error: 'RAW_그로스_month 시트 없음' };
+  var vals = sh.getRange(1, 1, Math.min(sh.getLastRow(), 15), Math.min(sh.getLastColumn(), 20)).getValues();
+  return vals.map(function(row) { return row.map(function(c) { return String(c || ''); }); });
 }
 
 // ============================================================
