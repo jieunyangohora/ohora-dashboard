@@ -471,10 +471,26 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
   const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) })); const [subView, setSubView] = useState('overview'); const [trendMode, setTrendMode] = useState('weekly');
   const [selectedMonthNode, setSelectedMonthNode] = useState(null);
-  const [aiInsight, setAiInsight] = useState(null); const [aiLoading, setAiLoading] = useState(false);
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiEditMode, setAiEditMode] = useState(false);
+  const [aiDraft, setAiDraft] = useState('');
+  const [aiSaving, setAiSaving] = useState(false);
+
+  // 주차/국가 바뀌면 시트에서 자동 로드
+  useEffect(() => {
+    if (!gasUrl) return;
+    setAiInsight(null); setAiEditMode(false);
+    fetch(`${gasUrl}?type=getAiSummary&country=${countryKey}&week=${selectedWeek}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok && d.summary) setAiInsight(d.summary); })
+      .catch(() => {});
+  }, [gasUrl, countryKey, selectedWeek]);
+
+  // Claude API로 새로 생성 (시트에 자동 저장됨)
   const fetchAiSummary = useCallback(async () => {
     if (!gasUrl || aiLoading) return;
-    setAiLoading(true); setAiInsight(null);
+    setAiLoading(true); setAiInsight(null); setAiEditMode(false);
     try {
       const res = await fetch(`${gasUrl}?type=aiSummary&country=${countryKey}&week=${selectedWeek}`);
       const data = await res.json();
@@ -483,6 +499,17 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
     } catch (e) { setAiInsight('⚠️ 연결 오류: ' + e.message); }
     finally { setAiLoading(false); }
   }, [gasUrl, countryKey, selectedWeek, aiLoading]);
+
+  // 담당자가 편집한 내용 시트에 저장
+  const saveAiSummary = useCallback(async () => {
+    if (!gasUrl || aiSaving) return;
+    setAiSaving(true);
+    try {
+      await fetch(gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type: 'saveAiSummary', country: countryKey, week: selectedWeek, summary: aiDraft }) });
+      setAiInsight(aiDraft); setAiEditMode(false);
+    } catch (e) {}
+    finally { setAiSaving(false); }
+  }, [gasUrl, countryKey, selectedWeek, aiDraft, aiSaving]);
   const monthlyData = useMemo(() => {
     const year = new Date().getFullYear(); const curMonth = new Date().getMonth() + 1;
     const byMonth = {};
@@ -576,15 +603,29 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
         <div>
           {/* AI 브리핑 카드 */}
           <div style={{ background: 'linear-gradient(135deg, #F6F4FF 0%, #FBF7F3 100%)', border: '1px solid #D4CCFF', borderRadius: 16, padding: '16px 20px', marginBottom: 18, boxShadow: SHADOW }}>
-            <div className="flex items-center justify-between mb-3">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span style={{ fontSize: 15, fontWeight: 800, color: '#5B4FCF' }}>🤖 AI 브리핑 · {selectedWeek}</span>
                 <span style={{ fontSize: 10.5, color: '#5B4FCF', background: '#EDE9FF', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>Beta</span>
               </div>
-              <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
-                {aiLoading ? '⏳ 분석 중...' : '✨ 인사이트 생성'}
-              </button>
+              <div className="flex items-center gap-2">
+                {aiInsight && !aiEditMode && (
+                  <button onClick={() => { setAiDraft(aiInsight); setAiEditMode(true); }} style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: '#fff', color: '#5B4FCF', border: '1px solid #D4CCFF', cursor: 'pointer' }}>✏️ 편집</button>
+                )}
+                <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
+                  {aiLoading ? '⏳ 분석 중...' : '✨ 인사이트 생성'}
+                </button>
+              </div>
             </div>
+
+            {/* 안내 문구 */}
+            <div style={{ fontSize: 11.5, color: '#7C72C8', background: '#EDEAFF', borderRadius: 8, padding: '6px 12px', marginBottom: 12, lineHeight: 1.6 }}>
+              💾 저장된 분석이 자동으로 불러와집니다. 해당 주차 내용으로 업데이트하려면 <b>'✨ 인사이트 생성'</b>을 눌러주세요.
+              새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 <b>필요할 때만</b> 눌러주세요!
+            </div>
+
+            {/* KPI 타일 */}
             <div className="flex flex-wrap gap-2 mb-3">
               {[
                 { label: '총 도달', value: fmt(totals(selectedWeek).reach), color: '#3E8FB0' },
@@ -598,11 +639,30 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 </div>
               ))}
             </div>
-            {aiInsight ? (
-              <div style={{ fontSize: 12.5, color: C.ink, background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiInsight}</div>
+
+            {/* 분석 내용 영역 */}
+            {aiEditMode ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={aiDraft}
+                  onChange={e => setAiDraft(e.target.value)}
+                  rows={10}
+                  placeholder="AI 생성 내용을 직접 수정하거나, 담당자 분석을 추가해주세요."
+                  style={{ border: '1.5px solid #B8AEFF', borderRadius: 10, padding: '12px 14px', fontSize: 12.5, fontFamily: FONT, resize: 'vertical', width: '100%', lineHeight: 1.7, color: C.ink, background: '#fff', boxSizing: 'border-box' }}
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setAiEditMode(false)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid #D4CCFF', background: '#fff', color: '#7C72C8', cursor: 'pointer' }}>취소</button>
+                  <button onClick={saveAiSummary} disabled={aiSaving} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: aiSaving ? '#B8AEFF' : '#5B4FCF', color: '#fff', cursor: aiSaving ? 'wait' : 'pointer' }}>
+                    {aiSaving ? '저장 중...' : '💾 저장 (구글시트 반영)'}
+                  </button>
+                </div>
+              </div>
+            ) : aiInsight ? (
+              <div style={{ fontSize: 12.5, color: C.ink, background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #E8E4FF', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{aiInsight}</div>
             ) : (
-              <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '10px 14px', border: '1px solid #E8E4FF' }}>
-                💡 이 주차의 오가닉/총 도달 비율, 콘텐츠 타율, 제품군별 성과를 분석하고 다음 주 전략을 Claude AI가 자동 제안합니다. 위 버튼을 눌러 생성해보세요.
+              <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.6 }}>
+                💡 이 주차의 오가닉/총 도달 비율, 콘텐츠 타율, 제품군별 성과를 분석하고 다음 주 전략을 Claude AI가 자동 제안합니다.<br />
+                위 <b style={{ color: '#5B4FCF' }}>'✨ 인사이트 생성'</b> 버튼을 눌러 생성해보세요. 생성 후에는 시트에 저장되어 다음에 자동으로 불러옵니다.
               </div>
             )}
           </div>

@@ -309,14 +309,20 @@ function doGet(e) {
       return json({ok:true, updated:updated, appended:appended});
     }
 
-    // ── AI 요약 ──────────────────────────────────────────────
+    // ── AI 요약 로드 (시트에서) ────────────────────────────────
+    if (param === 'getAiSummary') {
+      var gaCountry = (e && e.parameter && e.parameter.country) || 'KR';
+      var gaWeek = (e && e.parameter && e.parameter.week) || '';
+      var saved = loadSavedAiSummary(gaCountry, gaWeek);
+      return json({ ok: true, summary: saved || null });
+    }
+
+    // ── AI 요약 생성 (Claude API → 시트 저장) ─────────────────
     if (param === 'aiSummary') {
       var aiCountry = (e && e.parameter && e.parameter.country) || 'KR';
       var aiWeek = (e && e.parameter && e.parameter.week) || '';
-      // 이번 주 계정 지표 가져오기
       var amAll = buildAccountMetrics();
       var aiMetrics = (amAll[aiCountry] && amAll[aiCountry][aiWeek]) || {};
-      // 이번 주 콘텐츠 리스트 (도달 기준 TOP 5)
       var aiSheetName = aiCountry === 'KR' ? SHEET_KR_FEED : SHEET_US_FEED;
       var aiItems = [];
       try {
@@ -324,7 +330,7 @@ function doGet(e) {
         var aiWeekItems = aiRaw.filter(function(it){ return it._week === aiWeek; });
         aiItems = aiWeekItems.sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); }).slice(0,5);
       } catch(e2) { Logger.log('aiSummary items error: '+e2); }
-      return json(getAiSummary(aiCountry, aiWeek, aiMetrics, aiItems));
+      return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems));
     }
 
     // ── 메인 type=all ──────────────────────────────────────
@@ -798,6 +804,9 @@ function doPost(e) {
   try {
     var p=JSON.parse(e.postData.contents);
     if (p.type==='analysis') saveAnalysis(p);
+    if (p.type==='saveAiSummary' && p.country && p.week && p.summary !== undefined) {
+      saveAiSummaryToSheet(p.country, p.week, p.summary);
+    }
     return json({ok:true});
   } catch(err){ return json({ok:false,error:err.toString()}); }
 }
@@ -830,9 +839,59 @@ function getAnalysisMap() {
 }
 
 // ============================================================
-// AI 요약 (Claude API)
+// AI 요약 (Claude API) — 시트 저장/로드 포함
 // ============================================================
-function getAiSummary(country, week, accountMetrics, weekItems) {
+var AI_SUMMARY_SHEET = 'ai_summary';
+var AI_SUMMARY_HEADERS = ['week','country','summary','generatedAt'];
+
+function getAiSummarySheet_() {
+  var ss = getS();
+  var sh = ss.getSheetByName(AI_SUMMARY_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(AI_SUMMARY_SHEET);
+    sh.appendRow(AI_SUMMARY_HEADERS);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function loadSavedAiSummary(country, week) {
+  try {
+    var sh = getAiSummarySheet_();
+    var data = sh.getDataRange().getValues();
+    if (data.length < 2) return null;
+    var h = data[0], wi = h.indexOf('week'), ci = h.indexOf('country'), si = h.indexOf('summary');
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][wi]) === String(week) && String(data[r][ci]) === String(country)) {
+        var s = String(data[r][si] || '');
+        return s || null;
+      }
+    }
+    return null;
+  } catch(e) { Logger.log('loadSavedAiSummary error: ' + e); return null; }
+}
+
+function saveAiSummaryToSheet(country, week, summary) {
+  try {
+    var sh = getAiSummarySheet_();
+    var data = sh.getDataRange().getValues();
+    var h = data[0], wi = h.indexOf('week'), ci = h.indexOf('country'), si = h.indexOf('summary'), gi = h.indexOf('generatedAt');
+    var now = new Date();
+    for (var r = 1; r < data.length; r++) {
+      if (String(data[r][wi]) === String(week) && String(data[r][ci]) === String(country)) {
+        if (si >= 0) sh.getRange(r+1, si+1).setValue(summary);
+        if (gi >= 0) sh.getRange(r+1, gi+1).setValue(now);
+        return;
+      }
+    }
+    // 없으면 새 행 추가
+    var nr = AI_SUMMARY_HEADERS.map(function(){ return ''; });
+    nr[wi] = week; nr[ci] = country; nr[si] = summary; nr[gi] = now;
+    sh.appendRow(nr);
+  } catch(e) { Logger.log('saveAiSummaryToSheet error: ' + e); }
+}
+
+function generateAiSummary(country, week, accountMetrics, weekItems) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY가 GAS Script Properties에 설정되지 않았습니다. GAS 에디터 > 프로젝트 설정 > 스크립트 속성에 추가해주세요.' };
   try {
@@ -871,21 +930,15 @@ function getAiSummary(country, week, accountMetrics, weekItems) {
 
     var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      payload: JSON.stringify({
-        model: 'claude-opus-4-5-20251101',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }]
-      }),
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      payload: JSON.stringify({ model: 'claude-opus-4-5-20251101', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] }),
       muteHttpExceptions: true
     });
     var result = JSON.parse(response.getContentText());
     if (result.error) return { ok: false, error: result.error.message || JSON.stringify(result.error) };
-    return { ok: true, summary: result.content[0].text };
+    var summary = result.content[0].text;
+    saveAiSummaryToSheet(country, week, summary);
+    return { ok: true, summary: summary };
   } catch(e) { return { ok: false, error: e.toString() }; }
 }
 
