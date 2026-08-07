@@ -253,14 +253,14 @@ function ContentThumbnail({ item }) {
   return ( <div style={{ width: 50, height: 50, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: 'inset 0 0 4px rgba(0,0,0,0.1)' }}> <Icon size={18} color="#FFFFFF" opacity={0.9} /> </div> );
 }
 
-const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 판매전환 리뷰']];
+const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 기타리뷰']];
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
-  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '' });
-  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '' }); }, [open]);
+  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '' });
+  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
-  const hasReview = item.hypothesis || item.analysis || item.salesReview;
+  const hasReview = item.hypothesis || item.analysis || item.salesReview || item.isLoop || item.loopLink;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, boxShadow: SHADOW }}>
       <div className="flex gap-4 items-center">
@@ -330,7 +330,12 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
             <div className="flex items-start gap-2 flex-wrap" style={{ fontSize: 11.5, color: C.sub }}>
               {item.hypothesis && <span style={{ flex: '1 1 200px' }}>💡 <b style={{ color: C.ink }}>가설</b> {item.hypothesis}</span>}
               {item.analysis && <span style={{ flex: '1 1 200px' }}>📝 <b style={{ color: C.ink }}>분석</b> {item.analysis}</span>}
-              {item.salesReview && <span style={{ flex: '1 1 200px' }}>💰 <b style={{ color: C.ink }}>전환리뷰</b> {item.salesReview}</span>}
+              {item.salesReview && <span style={{ flex: '1 1 200px' }}>💰 <b style={{ color: C.ink }}>기타리뷰</b> {item.salesReview}</span>}
+              {item.isLoop && (
+                item.loopLink
+                  ? <a href={item.loopLink} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', textDecoration: 'none', flexShrink: 0 }}>🔁 루프북 →</a>
+                  : <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', flexShrink: 0 }}>🔁 루프북</span>
+              )}
               {onEditAnalysis && item.link && <button onClick={() => setOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, border: `1px solid ${C.border}`, background: '#fff', color: C.accent, cursor: 'pointer', flexShrink: 0 }}>✏️ 리뷰 {hasReview ? '수정' : '작성'}</button>}
             </div>
           ) : (
@@ -341,6 +346,19 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                   <textarea value={draft[f]} onChange={(e) => setDraft((d) => ({ ...d, [f]: e.target.value }))} onBlur={() => saveField(f)} rows={2} placeholder="입력 시 자동 저장 · 모든 접속자에게 공유됩니다" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 9px', fontSize: 12.5, fontFamily: FONT, resize: 'vertical', width: '100%' }} />
                 </label>
               ))}
+              {/* 루프북 등록 */}
+              <div style={{ background: '#F6F4FF', border: '1px solid #D4CCFF', borderRadius: 10, padding: '10px 12px' }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#5B4FCF' }}>🔁 루프북 등록</span>
+                  <div onClick={() => { const next = !draft.isLoop; setDraft(d => ({ ...d, isLoop: next })); if (onEditAnalysis && item.link) onEditAnalysis(item.link, 'isLoop', next); }} role="switch" aria-checked={draft.isLoop} style={{ width: 36, height: 20, borderRadius: 10, background: draft.isLoop ? '#5B4FCF' : '#D4CCFF', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>
+                    <div style={{ position: 'absolute', top: 2, left: draft.isLoop ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: draft.isLoop ? '#5B4FCF' : '#9A928A', fontWeight: 700 }}>{draft.isLoop ? '해당' : '미해당'}</span>
+                </div>
+                {draft.isLoop && (
+                  <input type="url" value={draft.loopLink} onChange={(e) => setDraft(d => ({ ...d, loopLink: e.target.value }))} onBlur={() => { if (onEditAnalysis && item.link && draft.loopLink !== (item.loopLink || '')) onEditAnalysis(item.link, 'loopLink', draft.loopLink); }} placeholder="노션 루프북 페이지 URL (선택)" style={{ border: '1px solid #D4CCFF', borderRadius: 7, padding: '6px 9px', fontSize: 12, fontFamily: FONT, width: '100%', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
+                )}
+              </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => { REVIEW_FIELDS.forEach(([f]) => saveField(f)); setOpen(false); }} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', cursor: 'pointer' }}>저장</button>
                 <button onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer' }}>닫기</button>
@@ -447,12 +465,24 @@ function SummaryView({ weekMeta, selectedWeek, accountMetrics, allContents, reso
   );
 }
 
-function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, resolvers, onEditAnalysis }) {
+function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, accountMetrics, allContents, dailyMetrics, weeklyCatSales, resolvers, onEditAnalysis, gasUrl }) {
   const labelsA = useMemo(() => metricLabels(ACCOUNT_METRICS), []);
   const weekKeys = weekMeta.map((w) => w.key); const metrics = accountMetrics[countryKey] || {}; const totals = (week) => metrics[week] || zeroAccount();
   const prevIdx = weekKeys.indexOf(selectedWeek) - 1; const prevWeek = prevIdx >= 0 ? weekKeys[prevIdx] : null; const wowDelta = (k) => { const cur = totals(selectedWeek)[k]; if (!prevWeek) return null; const prev = totals(prevWeek)[k]; return prev ? ((cur - prev) / prev) * 100 : null; };
   const trendData = displayWeeks.map((w) => ({ week: w, ...totals(w) })); const [subView, setSubView] = useState('overview'); const [trendMode, setTrendMode] = useState('weekly');
   const [selectedMonthNode, setSelectedMonthNode] = useState(null);
+  const [aiInsight, setAiInsight] = useState(null); const [aiLoading, setAiLoading] = useState(false);
+  const fetchAiSummary = useCallback(async () => {
+    if (!gasUrl || aiLoading) return;
+    setAiLoading(true); setAiInsight(null);
+    try {
+      const res = await fetch(`${gasUrl}?type=aiSummary&country=${countryKey}&week=${selectedWeek}`);
+      const data = await res.json();
+      if (data.ok) setAiInsight(data.summary);
+      else setAiInsight('⚠️ ' + (data.error || '분석 실패'));
+    } catch (e) { setAiInsight('⚠️ 연결 오류: ' + e.message); }
+    finally { setAiLoading(false); }
+  }, [gasUrl, countryKey, selectedWeek, aiLoading]);
   const monthlyData = useMemo(() => {
     const year = new Date().getFullYear(); const curMonth = new Date().getMonth() + 1;
     const byMonth = {};
@@ -509,20 +539,22 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
   const productCatDataNow = useMemo(() => {
     return PRODUCT_CATS.map(cat => {
       const catItems = weekItems.filter(i => i.productCategory === cat.key); const reels = catItems.filter(isReel); const rAvg = weeklyBaseAvg[selectedWeek]?.reachAvg || 0; const hits = reels.filter(r => Number(r.reach || 0) >= rAvg).length; const totalReach = catItems.reduce((s, i) => s + Number(i.reach || 0), 0);
-      return { ...cat, salesCount: catItems.reduce((s, i) => s + Number(i.salesCount || 0), 0), contentCount: catItems.length, reach: totalReach, avgReach: catItems.length ? Math.round(totalReach / catItems.length) : 0, views: catItems.reduce((s, i) => s + Number(i.views || 0), 0), hitRate: reels.length ? Math.round((hits / reels.length) * 100) : 0 };
+      const rawSales = weeklyCatSales?.[countryKey]?.[selectedWeek]?.[cat.key] ?? null;
+      return { ...cat, salesCount: rawSales !== null ? rawSales : catItems.reduce((s, i) => s + Number(i.salesCount || 0), 0), contentCount: catItems.length, reach: totalReach, avgReach: catItems.length ? Math.round(totalReach / catItems.length) : 0, views: catItems.reduce((s, i) => s + Number(i.views || 0), 0), hitRate: reels.length ? Math.round((hits / reels.length) * 100) : 0 };
     });
-  }, [weekItems, weeklyBaseAvg, selectedWeek]);
+  }, [weekItems, weeklyBaseAvg, selectedWeek, weeklyCatSales, countryKey]);
 
   const productTrendData = useMemo(() => {
     return displayWeeks.map(wk => {
       const itemsWeek = allContents[countryKey]?.[wk] || []; const rAvg = weeklyBaseAvg[wk]?.reachAvg || 0; const entry = { week: wk };
       PRODUCT_CATS.forEach(cat => {
         const catItems = itemsWeek.filter(i => i.productCategory === cat.key); const reels = catItems.filter(isReel); const hits = reels.filter(r => Number(r.reach || 0) >= rAvg).length;
-        entry[`${cat.key}_count`] = catItems.length; entry[`${cat.key}_reach`] = catItems.reduce((s, i) => s + Number(i.reach || 0), 0); entry[`${cat.key}_sales`] = catItems.reduce((s, i) => s + Number(i.salesCount || 0), 0); entry[`${cat.key}_hitRate`] = reels.length ? Math.round((hits / reels.length) * 100) : 0;
+        const rawSalesWk = weeklyCatSales?.[countryKey]?.[wk]?.[cat.key] ?? null;
+        entry[`${cat.key}_count`] = catItems.length; entry[`${cat.key}_reach`] = catItems.reduce((s, i) => s + Number(i.reach || 0), 0); entry[`${cat.key}_sales`] = rawSalesWk !== null ? rawSalesWk : catItems.reduce((s, i) => s + Number(i.salesCount || 0), 0); entry[`${cat.key}_hitRate`] = reels.length ? Math.round((hits / reels.length) * 100) : 0;
       });
       return entry;
     });
-  }, [displayWeeks, allContents, countryKey, weeklyBaseAvg]);
+  }, [displayWeeks, allContents, countryKey, weeklyBaseAvg, weeklyCatSales]);
 
   const localDailyArray = useMemo(() => dailyMetrics[countryKey] || [], [dailyMetrics, countryKey]);
   const selectedDayTopContents = useMemo(() => { if (!selectedDayNode) return []; let dayContents = []; weekKeys.forEach(wk => { (allContents[countryKey]?.[wk] || []).forEach(item => { if (item.publishDate === selectedDayNode._raw_date) dayContents.push(item); }); }); return dayContents.sort((a,b) => contentScore(b) - contentScore(a)).slice(0, 3); }, [selectedDayNode, allContents, countryKey, weekKeys]);
@@ -542,6 +574,38 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
       {subView === 'overview' && (
         <div>
+          {/* AI 브리핑 카드 */}
+          <div style={{ background: 'linear-gradient(135deg, #F6F4FF 0%, #FBF7F3 100%)', border: '1px solid #D4CCFF', borderRadius: 16, padding: '16px 20px', marginBottom: 18, boxShadow: SHADOW }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#5B4FCF' }}>🤖 AI 브리핑 · {selectedWeek}</span>
+                <span style={{ fontSize: 10.5, color: '#5B4FCF', background: '#EDE9FF', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>Beta</span>
+              </div>
+              <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
+                {aiLoading ? '⏳ 분석 중...' : '✨ 인사이트 생성'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[
+                { label: '총 도달', value: fmt(totals(selectedWeek).reach), color: '#3E8FB0' },
+                { label: '오가닉 도달', value: fmt(totals(selectedWeek).organicReach), color: '#2E9E89' },
+                { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B' },
+                { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89' },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '8px 14px', flex: '1 1 110px', border: '1px solid #E8E4FF', minWidth: 100 }}>
+                  <div style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color, letterSpacing: '-0.01em' }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            {aiInsight ? (
+              <div style={{ fontSize: 12.5, color: C.ink, background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{aiInsight}</div>
+            ) : (
+              <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '10px 14px', border: '1px solid #E8E4FF' }}>
+                💡 이 주차의 오가닉/총 도달 비율, 콘텐츠 타율, 제품군별 성과를 분석하고 다음 주 전략을 Claude AI가 자동 제안합니다. 위 버튼을 눌러 생성해보세요.
+              </div>
+            )}
+          </div>
           <SectionLabel color={C.accent}>매출 · 유입</SectionLabel>
           <div className="flex flex-wrap gap-3 mb-4">
             {[{ k: 'sales', s: 'salesAchieveRate' }, { k: 'inflow', s: 'inflowAchieveRate' }].map(({ k, s }) => ( <HeroCard key={k} metricsMap={ACCOUNT_METRICS} mkey={k} value={totals(selectedWeek)[k]} delta={wowDelta(k)} sub={<span style={{ fontSize:11, fontWeight:700 }}>달성률 {fmtMetric(s, totals(selectedWeek)[s])}</span>} /> ))}
@@ -938,6 +1002,38 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
               ))}
             </div>
           </div>
+
+          {/* 제품군별 S·A급 고성과 콘텐츠 */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 18, boxShadow: SHADOW }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: C.ink }}>🏅 제품군별 S·A급 고성과 콘텐츠 ({selectedWeek})</h3>
+              <GenericTooltip text="이번 주 발행 콘텐츠 중 S급·A+급·A급 등급(상위 15% 이내)을 받은 콘텐츠를 제품군별로 최대 2개씩 노출합니다." width={280} />
+            </div>
+            {(() => {
+              const sections = PRODUCT_CATS.map(cat => {
+                const catHighPerf = weekItems.filter(item => {
+                  if (item.productCategory !== cat.key) return false;
+                  const g = resolvers[countryKey + '_all']?.(item);
+                  return g && ['S급', 'A+급', 'A급'].includes(g.label);
+                }).sort((a, b) => contentScore(b) - contentScore(a)).slice(0, 2);
+                return { cat, items: catHighPerf };
+              }).filter(s => s.items.length > 0);
+              return sections.length === 0 ? (
+                <div style={{ textAlign: 'center', color: C.sub, padding: '24px 0', border: `1px dashed ${C.border}`, borderRadius: 12, fontSize: 13, fontWeight: 600 }}>이번 주 제품군별 S·A급 콘텐츠가 없습니다.</div>
+              ) : sections.map(({ cat, items }) => (
+                <div key={cat.key} style={{ marginBottom: 16 }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Swatch color={cat.color} size={8} />
+                    <span style={{ fontSize: 13, fontWeight: 800, color: C.ink }}>{cat.label}</span>
+                    <span style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>{items.length}건</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {items.map(item => <ContentCard key={item.id} item={item} coreKeys={CONTENT_CORE} subKeys={CONTENT_SUB} metricsMap={CONTENT_METRICS} grade={resolvers[countryKey + '_all']?.(item)} salesGrade={resolvers[countryKey + '_sales']?.(item)} onEditAnalysis={onEditAnalysis} />)}
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
         </div>
       )}
     </div>
@@ -955,6 +1051,9 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnaly
         </div>
       </div>
       <SectionLabel color={FEED_METRICS.saves.color}>피드 핵심 지표</SectionLabel>
+      <div style={{ fontSize: 11.5, color: C.sub, fontWeight: 600, marginTop: -6, marginBottom: 10, background: C.panel, borderRadius: 8, padding: '5px 10px', display: 'inline-block' }}>
+        📌 아래 수치는 <b style={{ color: C.ink }}>피드(정적 이미지) 콘텐츠만의 성과</b>로, 릴스·스토리는 제외됩니다.
+      </div>
       <div className="flex flex-wrap gap-3 mb-4">
         <HeroCard metricsMap={{ reach: { label: '도달', icon: Eye, color: '#3E8FB0' } }} mkey="reach" value={weeklyTotals(selectedCountry, selectedWeek).reach} delta={null} />
         <HeroCard metricsMap={{ engagement: { label: '참여', icon: Activity, color: '#6C5CE7' } }} mkey="engagement" value={weeklyTotals(selectedCountry, selectedWeek).engagement} delta={null} />
@@ -1187,6 +1286,7 @@ export default function Dashboard() {
   const [view, setView] = useState('KR'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents); const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [dailyMetrics, setDailyMetrics] = useState({ KR: [], US: [] });
+  const [weeklyCatSales, setWeeklyCatSales] = useState({ KR: {}, US: {} });
   const [loading, setLoading] = useState(true); const [showGasPanel, setShowGasPanel] = useState(false); const [pullStatus, setPullStatus] = useState('idle'); const [gasUrl, setGasUrl] = useState(''); const [gasInput, setGasInput] = useState(''); const [gasErr, setGasErr] = useState('');
   const isPullingRef = useRef(false);
 
@@ -1233,7 +1333,7 @@ export default function Dashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [w, f, a, am, gasR, dm] = await Promise.all([ storage.get(STORAGE_WEEKS_KEY), storage.get(STORAGE_FEED_KEY), storage.get(STORAGE_ALL_KEY), storage.get(STORAGE_ACCOUNT_KEY), storage.get(STORAGE_GAS_URL_KEY), storage.get('dash2-daily-metrics-v4') ]);
+        const [w, f, a, am, gasR, dm, wcs] = await Promise.all([ storage.get(STORAGE_WEEKS_KEY), storage.get(STORAGE_FEED_KEY), storage.get(STORAGE_ALL_KEY), storage.get(STORAGE_ACCOUNT_KEY), storage.get(STORAGE_GAS_URL_KEY), storage.get('dash2-daily-metrics-v4'), storage.get('dash2-weekly-cat-sales-v4') ]);
         let meta = initialWeekMeta; if (w?.value) { meta = JSON.parse(w.value); setWeekMeta(meta); }
         const currentYearStr = "2026";
         if (a?.value) {
@@ -1248,6 +1348,7 @@ export default function Dashboard() {
         }
         if (am?.value) setAccountMetrics(JSON.parse(am.value));
         if (dm?.value) setDailyMetrics(JSON.parse(dm.value));
+        if (wcs?.value) setWeeklyCatSales(JSON.parse(wcs.value));
         const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxBQQ2gFVTbK9Kv4mZGi5TzNSCshjPHNxkDy7u3eF3IYEnOp9rzGdgp_ut5iJqZc6mZ/exec';
         const resolvedUrl = gasR?.value || DEFAULT_GAS_URL;
         setGasUrl(resolvedUrl); setGasInput(resolvedUrl);
@@ -1270,7 +1371,7 @@ export default function Dashboard() {
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
-      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview']; const currentYearStr = "2026";
+      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink']; const currentYearStr = "2026";
       const mergeList = (localList, freshList) => {
         if (!Array.isArray(freshList)) return []; const byLink = {}; (localList || []).forEach((it) => { if (it && it.link) byLink[it.link] = it; });
         return freshList.filter(fresh => fresh && fresh.publishDate && String(fresh.publishDate).startsWith(currentYearStr)).map((raw) => {
@@ -1296,6 +1397,7 @@ export default function Dashboard() {
 
       await persist(STORAGE_WEEKS_KEY, nextWeekMeta, setWeekMeta); await persist(STORAGE_ACCOUNT_KEY, nextAccount, setAccountMetrics); await persist(STORAGE_ALL_KEY, nextAll, setAllContents); await persist(STORAGE_FEED_KEY, nextFeed, setFeedContents);
       await persist('dash2-daily-metrics-v4', nextDaily, setDailyMetrics);
+      if (data.weeklyCatSales) await persist('dash2-weekly-cat-sales-v4', data.weeklyCatSales, setWeeklyCatSales);
       setPullStatus('done'); setTimeout(() => setPullStatus('idle'), 4000);
     } catch (e) { setPullStatus('error'); setGasErr(e.message); }
     finally { isPullingRef.current = false; }
@@ -1363,7 +1465,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
+        {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} weeklyCatSales={weeklyCatSales} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}
 
