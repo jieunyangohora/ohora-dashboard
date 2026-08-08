@@ -276,7 +276,7 @@ function ContentThumbnail({ item }) {
 
 const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 기타리뷰']];
 // 포맷 반복 여부: [값, 글자색, 배경색]
-const FORMAT_REPEAT_OPTS = [['반복&확장', '#1D9E75', '#E1F5EE'], ['개선', '#D97A2B', '#FBEEDF'], ['제거', '#8A8178', '#ECE7E2']];
+const FORMAT_REPEAT_OPTS = [['필승', '#E8546B', '#FCE9EC'], ['반복&확장', '#1D9E75', '#E1F5EE'], ['개선', '#D97A2B', '#FBEEDF'], ['제거', '#8A8178', '#ECE7E2']];
 const formatRepeatStyle = (v) => (FORMAT_REPEAT_OPTS.find((o) => o[0] === v)) || [v, '#8A8178', '#ECE7E2'];
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
