@@ -328,11 +328,15 @@ function doGet(e) {
       var amAll = buildAccountMetrics();
       var aiMetrics = (amAll[aiCountry] && amAll[aiCountry][aiWeek]) || {};
       var aiSheetName = aiCountry === 'KR' ? SHEET_KR_FEED : SHEET_US_FEED;
+      var aiColStart  = aiCountry === 'KR' ? 48 : 49;
       var aiItems = [];
       try {
-        var aiRaw = getFeedBySheet(getS().getSheetByName(aiSheetName), loadCachedSales() || {kr:{byCode:{},byCat:{}},us:{byCode:{},byCat:{}}}, aiCountry);
-        var aiWeekItems = aiRaw.filter(function(it){ return it._week === aiWeek; });
-        aiItems = aiWeekItems.sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); }).slice(0,5);
+        var aiCached = loadCachedSales();
+        var aiSalesMap = (aiCached && aiCached[aiCountry.toLowerCase()]) || {byCode:{},byCat:{}};
+        var aiBoth = getFeedBySheet(aiSheetName, 'BOTH', aiSalesMap, aiColStart); // {all:{주차:[...]}, feed:{...}}
+        var aiWeekItems = (aiBoth && aiBoth.all && aiBoth.all[aiWeek]) || [];
+        // 전체 발행건(정렬만, 자르지 않음) → generateAiSummary가 정확한 count + top3 사용
+        aiItems = aiWeekItems.slice().sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); });
       } catch(e2) { Logger.log('aiSummary items error: '+e2); }
       return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems));
     }
