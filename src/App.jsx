@@ -1228,7 +1228,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
 function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnalysis }) {
   const [selectedCountry, setSelectedCountry] = useState('KR'); const weekContents = feedContents[selectedCountry]?.[selectedWeek] || [];
-  const weeklyTotals = (country, week) => { const list = feedContents[country]?.[week] || []; const saves = list.reduce((s, c) => s + Number(c.saves || 0), 0); const shares = list.reduce((s, c) => s + Number(c.shares || 0), 0); const likes = list.reduce((s, c) => s + Number(c.likes || 0), 0); const comments = list.reduce((s, c) => s + Number(c.comments || 0), 0); const reach = list.reduce((s, c) => s + Number(c.reach || 0), 0); return { saves, shares, likes, comments, reach, contentsCount: list.length, engagement: likes + comments + saves + shares }; };
+  const weeklyTotals = (country, week) => { const list = feedContents[country]?.[week] || []; const saves = list.reduce((s, c) => s + Number(c.saves || 0), 0); const shares = list.reduce((s, c) => s + Number(c.shares || 0), 0); const likes = list.reduce((s, c) => s + Number(c.likes || 0), 0); const comments = list.reduce((s, c) => s + Number(c.comments || 0), 0); const reach = list.reduce((s, c) => s + Number(c.reach || 0), 0); const follows = list.reduce((s, c) => s + Number(c.follows || 0), 0); return { saves, shares, likes, comments, reach, follows, contentsCount: list.length, engagement: likes + comments + saves + shares }; };
   return (
     <div>
       <div className="flex items-center justify-between flex-wrap gap-2 mb-4"> <h2>피드 콘텐츠 성과 리포트</h2>
@@ -1249,6 +1249,7 @@ function FeedView({ weekMeta, selectedWeek, feedContents, resolvers, onEditAnaly
         <HeroCard metricsMap={{ comments: { label: '댓글', icon: MessageCircle, color: '#4C6FBF' } }} mkey="comments" value={weeklyTotals(selectedCountry, selectedWeek).comments} delta={null} />
         <HeroCard metricsMap={FEED_METRICS} mkey="saves" value={weeklyTotals(selectedCountry, selectedWeek).saves} delta={null} />
         <HeroCard metricsMap={FEED_METRICS} mkey="shares" value={weeklyTotals(selectedCountry, selectedWeek).shares} delta={null} />
+        <HeroCard metricsMap={FEED_METRICS} mkey="follows" value={weeklyTotals(selectedCountry, selectedWeek).follows} delta={null} />
       </div>
       <div className="flex flex-col gap-2.5">
         {weekContents.length === 0 ? <div style={{ textAlign: 'center', color: C.sub, padding: '20px 0' }}>데이터가 없습니다.</div> : [...weekContents].sort((a, b) => feedScore(b) - feedScore(a)).map((item) => <ContentCard key={item.id} item={item} coreKeys={FEED_CORE} subKeys={FEED_SUB} metricsMap={FEED_METRICS} grade={resolvers[selectedCountry + '_feed'] ? resolvers[selectedCountry + '_feed'](item) : null} salesGrade={resolvers[selectedCountry + '_sales'] ? resolvers[selectedCountry + '_sales'](item) : null} onEditAnalysis={onEditAnalysis} />)}
