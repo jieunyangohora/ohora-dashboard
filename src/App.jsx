@@ -1249,6 +1249,8 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
   const [archiveCountry, setArchiveCountry] = useState('all'); const [filterMode, setFilterMode] = useState('all'); const [archType, setArchType] = useState('all'); const [archProd, setArchProd] = useState('all'); const [archSort, setArchSort] = useState('score');
   const [archFrom, setArchFrom] = useState(''); const [archTo, setArchTo] = useState('');
   const [archGrades, setArchGrades] = useState([]);
+  const [archRepeat, setArchRepeat] = useState('all');
+  const repeatFilters = [{ key: 'all', label: '전체', fg: '#fff', bg: '#241F1B' }, ...FORMAT_REPEAT_OPTS.map(([v, fg, bg]) => ({ key: v, label: v, fg, bg })), { key: 'none', label: '미분류', fg: '#8A8178', bg: '#F1ECE7' }];
   const toggleGrade = (label) => setArchGrades((prev) => prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]);
   const weekKeys = weekMeta.map((w) => w.key);
   const [archiveSubTab, setArchiveSubTab] = useState('list'); 
@@ -1301,6 +1303,11 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
         const g = resolvers[item._country + '_all'] ? resolvers[item._country + '_all'](item) : null;
         if (!g || !archGrades.includes(g.label)) return false;
       }
+      if (archRepeat !== 'all') {
+        const fr = String(item.formatRepeat || '').trim();
+        if (archRepeat === 'none') { if (fr !== '') return false; }
+        else if (fr !== archRepeat) return false;
+      }
       return true;
     }).sort((a, b) => {
       if (archSort === 'reach') return Number(b.reach || 0) - Number(a.reach || 0);
@@ -1313,7 +1320,7 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
       if (archSort === 'sales') return salesConvScore(b) - salesConvScore(a);
       return contentScore(b) - contentScore(a);
     });
-  }, [allContents, archiveCountry, filterMode, archFrom, archTo, archType, archProd, archSort, archGrades, weekKeys, resolvers]);
+  }, [allContents, archiveCountry, filterMode, archFrom, archTo, archType, archProd, archSort, archGrades, archRepeat, weekKeys, resolvers]);
 
   return (
     <div>
@@ -1343,6 +1350,11 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
                     {(archFrom || archTo) && <button onClick={() => { setArchFrom(''); setArchTo(''); }} style={{ fontSize: 11, fontWeight: 700, padding: '5px 9px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer' }}>✕</button>}
                   </span>
                 )}
+              </div>
+              <div className="flex flex-wrap gap-2 items-center"><span style={{ fontSize: 12, color: C.sub, fontWeight: 700, marginRight: 8 }}>♻️ 포맷 반복</span>
+                {repeatFilters.map((f) => { const sel = archRepeat === f.key; return (
+                  <button key={f.key} onClick={() => setArchRepeat(f.key)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: 'pointer', border: `1.5px solid ${sel ? (f.fg === '#fff' ? f.bg : f.fg) : C.border}`, background: sel ? f.bg : '#fff', color: sel ? f.fg : C.sub }}>{f.label}</button>
+                ); })}
               </div>
               <div className="flex flex-wrap gap-4 items-end pt-2 border-t border-dashed" style={{ borderColor: C.border }}>
                 <label className="flex flex-col gap-1.5"><span style={{ fontSize: 11, color: C.sub, fontWeight: 700 }}>타입 필터</span>
