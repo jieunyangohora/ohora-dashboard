@@ -278,6 +278,17 @@ const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 
 // 포맷 반복 여부: [값, 글자색, 배경색]
 const FORMAT_REPEAT_OPTS = [['필승', '#E8546B', '#FCE9EC'], ['반복&확장', '#1D9E75', '#E1F5EE'], ['개선', '#D97A2B', '#FBEEDF'], ['제거', '#8A8178', '#ECE7E2']];
 const formatRepeatStyle = (v) => (FORMAT_REPEAT_OPTS.find((o) => o[0] === v)) || [v, '#8A8178', '#ECE7E2'];
+// 버튼 등에 마우스오버 시 안내 툴팁
+function HoverTip({ tip, width = 230, children }) {
+  const [h, setH] = useState(false);
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex' }} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}>
+      {children}
+      {h && <span style={{ position: 'absolute', bottom: 'calc(100% + 8px)', right: 0, width, background: '#241F1B', color: '#fff', padding: '9px 11px', borderRadius: 8, fontSize: 11, lineHeight: 1.5, zIndex: 999, boxShadow: '0 4px 12px rgba(0,0,0,0.18)', fontWeight: 500, whiteSpace: 'normal', textAlign: 'left' }}>{tip}</span>}
+    </span>
+  );
+}
+
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
@@ -668,13 +679,14 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 <span style={{ fontSize: 10.5, color: '#5B4FCF', background: '#EDE9FF', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>Beta</span>
               </div>
               <div className="flex items-center gap-2">
-                <span style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 600, maxWidth: 200, lineHeight: 1.35, textAlign: 'right' }}>새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 필요할 때만 눌러주세요!</span>
                 {aiInsight && !aiEditMode && (
                   <button onClick={() => { setAiDraft(aiInsight); setAiEditMode(true); }} style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: '#fff', color: '#5B4FCF', border: '1px solid #D4CCFF', cursor: 'pointer' }}>✏️ 편집</button>
                 )}
-                <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
-                  {aiLoading ? '⏳ 분석 중...' : '✨ AI 인사이트 생성'}
-                </button>
+                <HoverTip tip="새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 필요할 때만 눌러주세요!" width={210}>
+                  <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
+                    {aiLoading ? '⏳ 분석 중...' : '✨ AI 인사이트 생성'}
+                  </button>
+                </HoverTip>
               </div>
             </div>
 
@@ -709,11 +721,14 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 return v > 0 ? v * 100 : null;
               };
 
+              const monthNewFollowers = elapsedMonthWeeks.reduce((s, w) => s + Number(totals(w.key).newFollowers || 0), 0);
+
               const kpiTiles = [
                 { label: '총 조회수', value: fmt(totals(selectedWeek).views), color: '#4C6FBF', wowKey: 'views', achieveRate: weeklyRate('viewsAchieveRate'), monthlyProj: monthlyProj('views', 'viewsTarget') },
                 { label: '오가닉 조회수', value: fmt(totals(selectedWeek).organicViews), color: '#2E9E89', wowKey: 'organicViews', achieveRate: weeklyRate('organicViewsAchieveRate'), monthlyProj: monthlyProj('organicViews', 'organicViewsTarget') },
                 { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B', wowKey: 'sales', achieveRate: weeklyRate('salesAchieveRate'), monthlyProj: monthlyProj('sales', 'salesTarget') },
                 { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89', wowKey: 'inflow', achieveRate: weeklyRate('inflowAchieveRate'), monthlyProj: monthlyProj('inflow', 'inflowTarget') },
+                { label: '팔로워(누적)', value: fmt(totals(selectedWeek).followers), color: '#6C5CE7', wowKey: 'followers', type: 'follow', weekNew: Number(totals(selectedWeek).newFollowers || 0), monthNew: monthNewFollowers },
               ];
 
               const rateColor = (v) => v == null ? '#9A928A' : v >= 100 ? '#2E9E89' : v >= 80 ? '#E0833A' : '#E8546B';
@@ -722,7 +737,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
               return (
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp }) => {
+                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp, type, weekNew, monthNew }) => {
                     const wow = wowDelta(wowKey);
                     return (
                       <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '11px 16px', flex: '1 1 120px', border: '1px solid #E8E4FF', minWidth: 110 }}>
@@ -730,21 +745,40 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                         <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.01em', marginBottom: 6 }}>{value}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid #F0EDFF', paddingTop: 7 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>전주 대비</span>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>전주 대비{type === 'follow' ? ' 증감율' : ''}</span>
                             <span style={{ fontSize: 12.5, fontWeight: 800, color: wowColor(wow) }}>{wowLabel(wow)}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
-                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(achieveRate) }}>
-                              {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
-                            </span>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
-                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(mp) }}>
-                              {mp != null ? `${mp}%` : '—'}
-                            </span>
-                          </div>
+                          {type === 'follow' ? (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 신규</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 800, color: weekNew > 0 ? '#2E9E89' : weekNew < 0 ? '#E8546B' : '#9A928A' }}>
+                                  {weekNew > 0 ? '+' : ''}{fmt(weekNew)}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 누적신규</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 800, color: monthNew > 0 ? '#2E9E89' : monthNew < 0 ? '#E8546B' : '#9A928A' }}>
+                                  {monthNew > 0 ? '+' : ''}{fmt(monthNew)}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(achieveRate) }}>
+                                  {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(mp) }}>
+                                  {mp != null ? `${mp}%` : '—'}
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
