@@ -33,7 +33,7 @@ const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, sans-ser
 const SHADOW = '0 1px 3px rgba(40,28,18,0.05)';
 
 const COUNTRIES = [ { key: 'KR', label: '한국', flag: '🇰🇷', color: '#E8546B' }, { key: 'US', label: '미국', flag: '🇺🇸', color: '#3E6FE0' } ];
-const NAV = [ { key: 'KR', label: '한국 대시보드', icon: Globe }, { key: 'US', label: '미국 대시보드', icon: Globe }, { key: 'feed', label: '피드 콘텐츠', icon: Rss }, { key: 'archive', label: '전체 콘텐츠 리스트', icon: Filter } ];
+const NAV = [ { key: 'global', label: '전국가 요약', icon: LayoutDashboard }, { key: 'KR', label: '한국 대시보드', icon: Globe }, { key: 'US', label: '미국 대시보드', icon: Globe }, { key: 'feed', label: '피드 콘텐츠', icon: Rss }, { key: 'archive', label: '전체 콘텐츠 리스트', icon: Filter } ];
 
 const ACCOUNT_METRICS = {
   reach: { label: '도달수', icon: Eye, color: '#3E8FB0' }, organicReach: { label: '오가닉 도달', icon: Leaf, color: '#2E9E89' }, views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' }, organicViews: { label: '오가닉 조회수', icon: Leaf, color: '#2E9E89' },
@@ -1481,8 +1481,195 @@ function CombinedArchiveView({ allContents, weekMeta, resolvers }) {
   );
 }
 
+// 전국가 요약 차트용 툴팁 (kind: volume|money|pct)
+function GlobalTip({ active, payload, label, kind }) {
+  if (!active || !payload?.length) return null;
+  const fmtV = (v) => v == null ? '—' : kind === 'money' ? `₩${fmt(v)}` : kind === 'pct' ? `${v > 0 ? '+' : ''}${v}%` : fmt(v);
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 13px', fontSize: 12, boxShadow: SHADOW }}>
+      <div style={{ fontWeight: 800, marginBottom: 6, color: C.ink }}>{label}</div>
+      {payload.map((p) => (
+        <div key={p.dataKey} className="flex items-center justify-between gap-4" style={{ color: C.ink, marginBottom: 3 }}>
+          <div className="flex items-center gap-1.5"><Swatch color={p.color} size={7} /><span>{p.name}</span></div>
+          <b>{fmtV(p.value)}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const KR_COLOR = '#E8546B', US_COLOR = '#3E6FE0';
+const fmtAxis = (v) => v == null ? '' : Math.abs(v) >= 100000000 ? `${(v / 1e8).toFixed(0)}억` : Math.abs(v) >= 10000 ? `${(v / 1e4).toFixed(0)}만` : `${v}`;
+
+function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
+  const [mode, setMode] = useState('weekly'); // weekly | monthly
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiEditMode, setAiEditMode] = useState(false);
+  const [aiDraft, setAiDraft] = useState('');
+  const [aiSaving, setAiSaving] = useState(false);
+
+  const weekKeys = weekMeta.map((w) => w.key);
+  const val = (c, wk, k) => Number(accountMetrics[c]?.[wk]?.[k] || 0);
+  const growPct = (cur, prev) => (prev ? +(((cur - prev) / prev) * 100).toFixed(1) : null);
+
+  // 주간 시계열 (선택 주차 기준 최근 8주)
+  const weeklySeries = useMemo(() => {
+    const end = weekKeys.indexOf(selectedWeek);
+    const startPad = end < 0 ? weekKeys.length : end;
+    const win = weekKeys.slice(Math.max(0, startPad - 7), startPad + 1);
+    return win.map((wk) => {
+      const gi = weekKeys.indexOf(wk); const pv = gi > 0 ? weekKeys[gi - 1] : null;
+      const grow = (c) => growPct(val(c, wk, 'followers'), pv ? val(c, pv, 'followers') : 0);
+      return {
+        label: wk,
+        views_KR: val('KR', wk, 'views'), views_US: val('US', wk, 'views'),
+        reach_KR: val('KR', wk, 'reach'), reach_US: val('US', wk, 'reach'),
+        sales_KR: val('KR', wk, 'sales'), sales_US: val('US', wk, 'sales'),
+        inflow_KR: val('KR', wk, 'inflow'), inflow_US: val('US', wk, 'inflow'),
+        follow_KR: grow('KR'), follow_US: grow('US'),
+      };
+    });
+  }, [weekMeta, selectedWeek, accountMetrics]);
+
+  // 월간 시계열 (지표 합산 / 팔로워는 월말 누적 → MoM 증감율)
+  const monthlySeries = useMemo(() => {
+    const months = [...new Set(weekMeta.filter((w) => w.month).map((w) => w.month))].sort();
+    const rows = months.map((m) => {
+      const wks = weekMeta.filter((w) => w.month === m).map((w) => w.key).sort((a, b) => weekKeys.indexOf(a) - weekKeys.indexOf(b));
+      const row = { label: `${Number(String(m).split('-')[1])}월` };
+      ['KR', 'US'].forEach((c) => {
+        ['views', 'reach', 'sales', 'inflow'].forEach((k) => { row[`${k}_${c}`] = wks.reduce((s, wk) => s + val(c, wk, k), 0); });
+        let lastFol = 0; wks.forEach((wk) => { const f = val(c, wk, 'followers'); if (f) lastFol = f; });
+        row[`_fol_${c}`] = lastFol;
+      });
+      return row;
+    });
+    return rows.map((r, i) => {
+      const prev = i > 0 ? rows[i - 1] : null;
+      return { ...r, follow_KR: growPct(r._fol_KR, prev ? prev._fol_KR : 0), follow_US: growPct(r._fol_US, prev ? prev._fol_US : 0) };
+    });
+  }, [weekMeta, accountMetrics]);
+
+  const data = mode === 'weekly' ? weeklySeries : monthlySeries;
+
+  const charts = [
+    { title: '조회수', kr: 'views_KR', us: 'views_US', kind: 'volume' },
+    { title: '도달', kr: 'reach_KR', us: 'reach_US', kind: 'volume' },
+    { title: '매출', kr: 'sales_KR', us: 'sales_US', kind: 'money' },
+    { title: '유입', kr: 'inflow_KR', us: 'inflow_US', kind: 'volume' },
+    { title: '팔로우 증감율', kr: 'follow_KR', us: 'follow_US', kind: 'pct' },
+  ];
+
+  // AI 통합 브리핑 — 저장/로드는 country=GLOBAL 재활용, 생성은 aiGlobalSummary
+  useEffect(() => {
+    if (!gasUrl) return; setAiInsight(null); setAiEditMode(false);
+    fetch(`${gasUrl}?type=getAiSummary&country=GLOBAL&week=${selectedWeek}`).then((r) => r.json()).then((d) => { if (d.ok && d.summary) setAiInsight(d.summary); }).catch(() => {});
+  }, [gasUrl, selectedWeek]);
+  const fetchAi = useCallback(async () => {
+    if (!gasUrl || aiLoading) return; setAiLoading(true); setAiInsight(null); setAiEditMode(false);
+    try { const res = await fetch(`${gasUrl}?type=aiGlobalSummary&week=${selectedWeek}`); const d = await res.json(); setAiInsight(d.ok ? d.summary : '⚠️ ' + (d.error || '분석 실패')); }
+    catch (e) { setAiInsight('⚠️ 연결 오류: ' + e.message); } finally { setAiLoading(false); }
+  }, [gasUrl, selectedWeek, aiLoading]);
+  const saveAi = useCallback(async () => {
+    if (!gasUrl || aiSaving) return; setAiSaving(true);
+    try { await fetch(gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ type: 'saveAiSummary', country: 'GLOBAL', week: selectedWeek, summary: aiDraft }) }); setAiInsight(aiDraft); setAiEditMode(false); }
+    catch (e) {} finally { setAiSaving(false); }
+  }, [gasUrl, selectedWeek, aiDraft, aiSaving]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h2 style={{ fontSize: 19, fontWeight: 800, margin: 0 }}>🌏 전국가 요약 대시보드 · {mode === 'weekly' ? selectedWeek : '월간'}</h2>
+          <div style={{ fontSize: 12, color: C.sub, marginTop: 3 }}>한국·미국을 지표별로 나란히 비교합니다. (총합산 제외 · 국가별 라인)</div>
+        </div>
+        <div style={{ display: 'inline-flex', background: C.panel, padding: 3, borderRadius: 8, border: `1px solid ${C.border}` }}>
+          {[['weekly', '📊 주간'], ['monthly', '📅 월간']].map(([k, lbl]) => (
+            <button key={k} onClick={() => setMode(k)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12.5, fontWeight: mode === k ? 800 : 600, background: mode === k ? '#fff' : 'transparent', color: mode === k ? C.ink : C.sub, border: 'none', cursor: 'pointer' }}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* AI 통합 브리핑 */}
+      <div style={{ background: C.card, border: '1px solid #E8E4FF', borderRadius: 16, padding: 18, marginBottom: 20, boxShadow: SHADOW }}>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 15, fontWeight: 800, color: '#5B4FCF' }}>🤖 AI 통합 브리핑 · {selectedWeek}</span>
+            <span style={{ fontSize: 10.5, color: '#5B4FCF', background: '#EDE9FF', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>Beta</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {aiInsight && !aiEditMode && (
+              <button onClick={() => { setAiDraft(aiInsight); setAiEditMode(true); }} style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: '#fff', color: '#5B4FCF', border: '1px solid #D4CCFF', cursor: 'pointer' }}>✏️ 편집</button>
+            )}
+            <HoverTip tip="새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 필요할 때만 눌러주세요!" width={210}>
+              <button onClick={fetchAi} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
+                {aiLoading ? '⏳ 분석 중...' : '✨ AI 인사이트 생성'}
+              </button>
+            </HoverTip>
+          </div>
+        </div>
+        {aiEditMode ? (
+          <div className="flex flex-col gap-2">
+            <textarea value={aiDraft} onChange={(e) => setAiDraft(e.target.value)} rows={10} placeholder="AI 생성 내용을 직접 수정하거나, 담당자 분석을 추가해주세요." style={{ border: '1.5px solid #B8AEFF', borderRadius: 10, padding: '12px 14px', fontSize: 12.5, fontFamily: FONT, resize: 'vertical', width: '100%', lineHeight: 1.7, color: C.ink, background: '#fff', boxSizing: 'border-box' }} />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setAiEditMode(false)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: '1px solid #D4CCFF', background: '#fff', color: '#7C72C8', cursor: 'pointer' }}>취소</button>
+              <button onClick={saveAi} disabled={aiSaving} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: aiSaving ? '#B8AEFF' : '#5B4FCF', color: '#fff', cursor: aiSaving ? 'wait' : 'pointer' }}>{aiSaving ? '저장 중...' : '💾 저장 (구글시트 반영)'}</button>
+            </div>
+          </div>
+        ) : aiInsight ? (
+          <div style={{ fontSize: 13, color: C.ink, background: '#fff', borderRadius: 12, padding: '16px 18px', border: '1px solid #E8E4FF', lineHeight: 1.7 }}>{renderInsight(aiInsight)}</div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.6 }}>
+            💡 한국·미국의 주요 지표를 종합해 양국 성과를 비교하고 다음 주 전략을 Claude AI가 자동 제안합니다.<br />
+            위 <b style={{ color: '#5B4FCF' }}>'✨ AI 인사이트 생성'</b> 버튼을 눌러 생성해보세요.
+          </div>
+        )}
+      </div>
+
+      {/* 지표별 국가 비교 차트 */}
+      <div className="flex flex-wrap gap-4">
+        {charts.map((c) => {
+          const dual = c.kind !== 'pct';
+          return (
+            <div key={c.title} style={{ flex: '1 1 420px', minWidth: 320, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 14px 10px', boxShadow: SHADOW }}>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <h3 style={{ fontSize: 14.5, fontWeight: 800, margin: 0, color: C.ink }}>{c.title}{c.kind === 'money' ? ' (₩)' : c.kind === 'pct' ? ' (%)' : ''}</h3>
+                <div className="flex items-center gap-3" style={{ fontSize: 11, fontWeight: 700 }}>
+                  <span className="flex items-center gap-1"><Swatch color={KR_COLOR} size={8} />🇰🇷 한국</span>
+                  <span className="flex items-center gap-1"><Swatch color={US_COLOR} size={8} />🇺🇸 미국</span>
+                </div>
+              </div>
+              <div style={{ width: '100%', height: 210 }}>
+                <ResponsiveContainer>
+                  <LineChart data={data} margin={{ top: 8, right: 6, left: -6, bottom: 0 }}>
+                    <CartesianGrid stroke={C.border} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
+                    {dual ? (
+                      <>
+                        <YAxis yAxisId="kr" tick={{ fontSize: 10, fill: KR_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={40} />
+                        <YAxis yAxisId="us" orientation="right" tick={{ fontSize: 10, fill: US_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={40} />
+                      </>
+                    ) : (
+                      <YAxis tick={{ fontSize: 10, fill: C.sub }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={42} />
+                    )}
+                    <Tooltip content={<GlobalTip kind={c.kind} />} />
+                    <Line {...(dual ? { yAxisId: 'kr' } : {})} type="monotone" dataKey={c.kr} name="🇰🇷 한국" stroke={KR_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                    <Line {...(dual ? { yAxisId: 'us' } : {})} type="monotone" dataKey={c.us} name="🇺🇸 미국" stroke={US_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              {dual && <div style={{ fontSize: 10, color: C.subLite, textAlign: 'center', marginTop: 2 }}>※ 좌축=한국, 우축=미국 (국가별 규모 차이로 축 분리)</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const [view, setView] = useState('KR'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
+  const [view, setView] = useState('global'); const [weekMeta, setWeekMeta] = useState(initialWeekMeta); const [selectedWeek, setSelectedWeek] = useState('W24');
   const [feedContents, setFeedContents] = useState(initialFeedContents); const [allContents, setAllContents] = useState(initialAllContents); const [accountMetrics, setAccountMetrics] = useState(initialAccountMetrics);
   const [dailyMetrics, setDailyMetrics] = useState({ KR: [], US: [] });
   const [weeklyCatSales, setWeeklyCatSales] = useState({ KR: {}, US: {} });
@@ -1666,6 +1853,7 @@ export default function Dashboard() {
           </div>
         )}
 
+        {view === 'global' && <GlobalSummaryView weekMeta={weekMeta} selectedWeek={selectedWeek} accountMetrics={accountMetrics} gasUrl={gasUrl} />}
         {(view === 'KR' || view === 'US') && <CountryView countryKey={view} weekMeta={weekMeta} selectedWeek={selectedWeek} displayWeeks={weekKeys.slice(Math.max(0, endIdx - 6), endIdx + 1)} accountMetrics={accountMetrics} allContents={allContents} dailyMetrics={dailyMetrics} weeklyCatSales={weeklyCatSales} monthlyTargets={monthlyTargets} onAllContentsChange={(next) => persist(STORAGE_ALL_KEY, next, setAllContents)} gasUrl={gasUrl} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'feed' && <FeedView weekMeta={weekMeta} selectedWeek={selectedWeek} feedContents={feedContents} resolvers={resolvers} onEditAnalysis={handleEditAnalysis} />}
         {view === 'archive' && <CombinedArchiveView allContents={allContents} weekMeta={weekMeta} resolvers={resolvers} />}

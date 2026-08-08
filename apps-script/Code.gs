@@ -358,6 +358,12 @@ function doGet(e) {
       return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems, aiTrend, aiMeta));
     }
 
+    // ── AI 통합 브리핑 (KR+US 종합, country='GLOBAL'로 저장) ──
+    if (param === 'aiGlobalSummary') {
+      var gWeek = (e && e.parameter && e.parameter.week) || '';
+      return json(generateGlobalAiSummary(gWeek));
+    }
+
     // ── 메인 type=all ──────────────────────────────────────
     var cached = loadCachedSales();
     var krSalesMap, usSalesMap;
@@ -1197,6 +1203,81 @@ function generateAiSummary(country, week, accountMetrics, weekItems, trend, meta
     (result.content || []).forEach(function(b) { if (b && b.type === 'text' && b.text) summary += b.text; });
     if (!summary) return { ok: false, error: 'AI 응답에서 텍스트를 찾지 못함 (stop_reason: ' + (result.stop_reason||'?') + ')' };
     saveAiSummaryToSheet(country, week, summary);
+    return { ok: true, summary: summary };
+  } catch(e) { return { ok: false, error: e.toString() }; }
+}
+
+// AI 통합 브리핑: KR·US 종합 비교 → Claude → country='GLOBAL'로 저장
+function generateGlobalAiSummary(week) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+  if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY가 GAS Script Properties에 설정되지 않았습니다.' };
+  try {
+    var am = buildAccountMetrics();
+    var selN = weekNum(week);
+    // 국가별 이번 주 스냅샷 + 전주대비 + 팔로우 증감율
+    function snap(c) {
+      var cur = (am[c] && am[c][week]) || {};
+      var wks = Object.keys(am[c]||{}).filter(function(w){ return weekNum(w) <= selN; }).sort(function(a,b){ return weekNum(a)-weekNum(b); });
+      var prevKey = wks.length >= 2 ? wks[wks.length-2] : null;
+      var prev = prevKey ? am[c][prevKey] : {};
+      var wow = function(k){ var p=Number(prev[k]||0); return p ? Math.round(((Number(cur[k]||0)-p)/p)*100) : null; };
+      var folCur = Number(cur.followers||0), folPrev = Number(prev.followers||0);
+      var folGrow = folPrev ? +(((folCur-folPrev)/folPrev)*100).toFixed(1) : null;
+      return { cur: cur, wow: wow, folCur: folCur, folGrow: folGrow, newFol: Number(cur.newFollowers||0),
+        salesRate: cur.salesAchieveRate != null ? Math.round(cur.salesAchieveRate*100) : null,
+        inflowRate: cur.inflowAchieveRate != null ? Math.round(cur.inflowAchieveRate*100) : null,
+        trend: wks.slice(-6).map(function(w){ var mm=am[c][w]||{}; return { week:w, views:mm.views||0, sales:mm.sales||0, inflow:mm.inflow||0, followers:mm.followers||0 }; }) };
+    }
+    var KR = snap('KR'), US = snap('US');
+    function block(name, s, isKR) {
+      var c = s.cur;
+      var lines = [
+        '### ' + name,
+        '- 조회수: ' + (Number(c.views||0)).toLocaleString() + (s.wow('views')!=null?' (전주 '+(s.wow('views')>0?'+':'')+s.wow('views')+'%)':''),
+        '- 도달: ' + (Number(c.reach||0)).toLocaleString() + (s.wow('reach')!=null?' (전주 '+(s.wow('reach')>0?'+':'')+s.wow('reach')+'%)':''),
+        '- 매출: ₩' + (Number(c.sales||0)).toLocaleString() + (s.salesRate!=null?' (목표 '+s.salesRate+'%)':'') + (s.wow('sales')!=null?' / 전주 '+(s.wow('sales')>0?'+':'')+s.wow('sales')+'%':''),
+        '- 유입: ' + (Number(c.inflow||0)).toLocaleString() + (s.inflowRate!=null?' (목표 '+s.inflowRate+'%)':'') + (s.wow('inflow')!=null?' / 전주 '+(s.wow('inflow')>0?'+':'')+s.wow('inflow')+'%':''),
+        '- 팔로워(누적): ' + s.folCur.toLocaleString() + ' / 증감율 ' + (s.folGrow!=null?(s.folGrow>0?'+':'')+s.folGrow+'%':'—') + ' / 신규 +' + s.newFol.toLocaleString()
+      ];
+      if (isKR) { var orgR = Number(c.reach||0)>0 ? Math.round((Number(c.organicReach||0)/Number(c.reach||0))*100) : 0; lines.push('- 오가닉 도달 비율: ' + orgR + '%'); }
+      lines.push('- 최근 추이: ' + s.trend.map(function(t){ return t.week+'(조회'+(t.views>=10000?Math.round(t.views/10000)+'만':t.views)+'/매출'+(t.sales>=100000000?Math.round(t.sales/100000000)+'억':t.sales>=10000?Math.round(t.sales/10000)+'만':t.sales)+'/팔'+t.followers.toLocaleString()+')'; }).join(', '));
+      return lines.join('\n');
+    }
+
+    var prompt = [
+      '당신은 오호라(네일 브랜드) 콘텐츠팀의 SNS 성과 분석가입니다.',
+      week + ' 주차의 **한국(KR)·미국(US) 양국 성과를 종합 비교**해 통합 브리핑을 작성하세요.',
+      '⚠️ 콘텐츠 실물은 볼 수 없습니다. 크리에이티브 추측 금지, 정량 데이터 해석만.',
+      '',
+      block('🇰🇷 한국 (KR)', KR, true),
+      '',
+      block('🇺🇸 미국 (US)', US, false),
+      '',
+      '아래 3개 섹션으로 **간결하게** 답변하세요. 장황한 서술 금지:',
+      '🌏 **양국 성과 요약** — KR·US 각각 전주 대비 변화 + 목표 달성 + 추이 방향(성장/정체/하락)을 한 줄씩. 팔로우 증감율도 포함.',
+      '🔍 **국가별 포인트** — 두 마켓을 비교해 눈에 띄는 차이·특이점(어느 쪽이 강세/약세인지)을 수치로. 2~3문장.',
+      '🚀 **다음 주 통합 액션** — 불릿 2~3개, 콘텐츠팀이 양국에 적용 가능한 실행안.',
+      '',
+      '규칙:',
+      '- **말투: 콘텐츠팀 동료에게 브리핑하듯 친근한 실무체(~요체).** 수치·핵심 진단은 명확히.',
+      '- 각 불릿은 "**라벨**: 설명" 형식. 숫자는 만/억 단위로.',
+      '- **다음 주 액션은 콘텐츠팀이 직접 실행 가능한 것만.** 광고 예산·세팅·집행은 콘텐츠팀 관할이 아니므로 제외.',
+      '- (KR) 오가닉 비율은 현황 언급만, 개선은 콘텐츠 측면으로. (US) 광고 비중이 낮아 오가닉 비율은 무의미하니 언급하지 마세요.',
+      '- 크리에이티브·기획 의도 추측 금지. 수치 해석만.'
+    ].join('\n');
+
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      payload: JSON.stringify({ model: 'claude-opus-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] }),
+      muteHttpExceptions: true
+    });
+    var result = JSON.parse(response.getContentText());
+    if (result.error) return { ok: false, error: result.error.message || JSON.stringify(result.error) };
+    var summary = '';
+    (result.content || []).forEach(function(b) { if (b && b.type === 'text' && b.text) summary += b.text; });
+    if (!summary) return { ok: false, error: 'AI 응답에서 텍스트를 찾지 못함 (stop_reason: ' + (result.stop_reason||'?') + ')' };
+    saveAiSummaryToSheet('GLOBAL', week, summary);
     return { ok: true, summary: summary };
   } catch(e) { return { ok: false, error: e.toString() }; }
 }
