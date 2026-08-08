@@ -1558,7 +1558,6 @@ function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
     { title: '도달', kr: 'reach_KR', us: 'reach_US', kind: 'volume' },
     { title: '매출', kr: 'sales_KR', us: 'sales_US', kind: 'money' },
     { title: '유입', kr: 'inflow_KR', us: 'inflow_US', kind: 'volume' },
-    { title: '팔로우 증감율', kr: 'follow_KR', us: 'follow_US', kind: 'pct' },
   ];
 
   // AI 통합 브리핑 — 저장/로드는 country=GLOBAL 재활용, 생성은 aiGlobalSummary
