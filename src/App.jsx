@@ -1642,16 +1642,16 @@ function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
               </div>
               <div style={{ width: '100%', height: 210 }}>
                 <ResponsiveContainer>
-                  <LineChart data={data} margin={{ top: 8, right: 6, left: -6, bottom: 0 }}>
+                  <LineChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
                     <CartesianGrid stroke={C.border} vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.sub }} axisLine={false} tickLine={false} />
                     {dual ? (
                       <>
-                        <YAxis yAxisId="kr" tick={{ fontSize: 10, fill: KR_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={40} />
-                        <YAxis yAxisId="us" orientation="right" tick={{ fontSize: 10, fill: US_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={40} />
+                        <YAxis yAxisId="kr" tick={{ fontSize: 10, fill: KR_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={50} />
+                        <YAxis yAxisId="us" orientation="right" tick={{ fontSize: 10, fill: US_COLOR }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} width={50} />
                       </>
                     ) : (
-                      <YAxis tick={{ fontSize: 10, fill: C.sub }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={42} />
+                      <YAxis tick={{ fontSize: 10, fill: C.sub }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={46} />
                     )}
                     <Tooltip content={<GlobalTip kind={c.kind} />} />
                     <Line {...(dual ? { yAxisId: 'kr' } : {})} type="monotone" dataKey={c.kr} name="🇰🇷 한국" stroke={KR_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
