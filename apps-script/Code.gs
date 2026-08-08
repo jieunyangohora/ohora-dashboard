@@ -131,6 +131,7 @@ function doGet(e) {
 
     if (param === 'debugAccount') return json(buildAccountMetrics());
     if (param === 'debugMonthly') return json(debugMonthlySheet_());
+    if (param === 'debugTargets') return json(buildMonthlyTargets());
 
     // US 게시물 시트 컬럼 위치 확인 (product type/code/name 헤더가 어디 있는지)
     if (param === 'debugUSColumns') {
@@ -625,57 +626,82 @@ function buildAccountMetrics() {
 // ============================================================
 // 월간 목표치 (RAW_그로스_month 탭)
 // ============================================================
+// 실제 시트 구조: US·KR 두 블록이 가로로 나란히 배치.
+//   각 블록 = [지표 라벨 열][1월][2월]...[12월][연간합계]
+//   월 헤더는 "1월"~"12월" (연도 없음 → 현재 연도 사용)
+//   블록 국가는 헤더 위 섹션행의 "..._US" / "..._KR" 텍스트로 판별
 function buildMonthlyTargets() {
   var out = { KR: {}, US: {} };
   var ss = getS();
   var sh = ss.getSheetByName('RAW_그로스_month');
-  if (!sh || sh.getLastRow() < 2) return out;
+  if (!sh || sh.getLastRow() < 3) return out;
   var lr = sh.getLastRow(), lc = sh.getLastColumn();
-  var vals = sh.getRange(1, 1, Math.min(lr, 60), Math.min(lc, 30)).getValues();
+  var vals = sh.getRange(1, 1, Math.min(lr, 40), Math.min(lc, 40)).getValues();
+  var year = new Date().getFullYear(); // 월 헤더에 연도가 없으므로 (weekToMonth과 동일 기준)
 
-  // 헤더 행 탐색: YYYY-MM 또는 YYYY.MM 형식의 월 키 3개 이상 있는 행
-  var MONTH_RE = /^(20\d{2})[-./](0?[1-9]|1[0-2])$/;
-  var headerRow = -1, colMonth = {};
+  var MONTH_RE = /^\s*(0?[1-9]|1[0-2])\s*월\s*$/; // "1월".."12월"
+
+  // 1) 헤더 행 탐색: "N월" 셀이 3개 이상 있는 행
+  var headerRow = -1;
   for (var r = 0; r < Math.min(vals.length, 6); r++) {
-    var cnt = 0, cm = {};
-    for (var c = 0; c < vals[r].length; c++) {
-      var s = String(vals[r][c] || '').trim();
-      if (MONTH_RE.test(s)) {
-        var parts = s.split(/[-./]/);
-        var mk = parts[0] + '-' + (parts[1].length === 1 ? '0' + parts[1] : parts[1]);
-        cm[c] = mk; cnt++;
-      }
-    }
-    if (cnt >= 2) { headerRow = r; colMonth = cm; break; }
+    var cnt = 0;
+    for (var c = 0; c < vals[r].length; c++) if (MONTH_RE.test(String(vals[r][c] || ''))) cnt++;
+    if (cnt >= 3) { headerRow = r; break; }
   }
   if (headerRow < 0) return out;
 
-  // 라벨 → 필드 매핑 (시트에서 쓰는 라벨명에 맞춰 필요 시 추가)
-  var LABEL_F = {
-    '조회수 목표':'viewsTarget','목표 조회수':'viewsTarget','views 목표':'viewsTarget',
-    '오가닉 조회수 목표':'organicViewsTarget','목표 오가닉 조회수':'organicViewsTarget',
-    '매출 목표':'salesTarget','목표 매출':'salesTarget',
-    '유입 목표':'inflowTarget','목표 유입':'inflowTarget',
-    // 오가닉 달성률처럼 쓰는 경우 대비
-    '조회수':'viewsTarget','오가닉 조회수':'organicViewsTarget','매출':'salesTarget','유입':'inflowTarget'
-  };
-  var labelOf = function(row) {
-    for (var c = 0; c < 3; c++) { var s = String(row[c] || '').trim(); if (s) return s; }
-    return '';
-  };
-  // country 컬럼 탐색 (첫 번째 컬럼에 'KR'/'US' 등이 있으면 해당 행은 해당 국가로 처리)
-  var curCountry = 'KR'; // 기본값: KR
-  for (var r2 = headerRow + 1; r2 < vals.length; r2++) {
-    var rowCountry = String(vals[r2][0] || '').trim().toUpperCase();
-    if (rowCountry === 'KR' || rowCountry === 'US') { curCountry = rowCountry; continue; }
-    var lbl = labelOf(vals[r2]);
-    var f = LABEL_F[lbl]; if (!f) continue;
-    Object.keys(colMonth).forEach(function(cs) {
-      var c = parseInt(cs), mo = colMonth[c];
-      if (!out[curCountry][mo]) out[curCountry][mo] = {};
-      out[curCountry][mo][f] = toNum(vals[r2][c]);
-    });
+  // 2) 헤더행에서 연속된 월 구간을 블록으로 분리
+  var hdr = vals[headerRow], blocks = [], cur = null;
+  for (var c2 = 0; c2 < hdr.length; c2++) {
+    var m = String(hdr[c2] || '').match(MONTH_RE);
+    if (m) {
+      var mo = year + '-' + (m[1].length === 1 ? '0' + m[1] : m[1]);
+      if (!cur) { cur = { monthCols: {}, firstCol: c2 }; blocks.push(cur); }
+      cur.monthCols[c2] = mo;
+    } else { cur = null; }
   }
+  blocks.forEach(function(b) { b.labelCol = b.firstCol - 1; }); // "지표" 열 = 첫 월 열 - 1
+
+  // 3) 블록 국가 판별: 헤더행 이하 섹션행에서 라벨열 근처 "_US"/"_KR" 탐지
+  function detectCountry(b) {
+    for (var r = 0; r <= headerRow; r++) {
+      for (var c = Math.max(0, b.labelCol - 1); c <= b.firstCol; c++) {
+        var s = String(vals[r][c] || '').toUpperCase();
+        if (s.indexOf('_US') >= 0 || /\bUS\b/.test(s)) return 'US';
+        if (s.indexOf('_KR') >= 0 || /\bKR\b/.test(s)) return 'KR';
+      }
+    }
+    return null;
+  }
+
+  // 4) 목표 라벨 → 필드 (달성/실적 행은 제외되도록 '목표'류만 매칭)
+  var LABEL_F = [
+    { re: /신규\s*목표\s*매출|목표\s*매출|매출\s*목표/, f: 'salesTarget' },
+    { re: /목표\s*유입|유입\s*목표/,                    f: 'inflowTarget' },
+    { re: /목표\s*콘텐츠\s*뷰|콘텐츠\s*뷰\s*목표|조회수\s*목표|목표\s*조회수/, f: 'viewsTarget' },
+    { re: /ㄴ\s*콘텐츠\s*\(\s*85|오가닉.*목표|목표.*오가닉/, f: 'organicViewsTarget' }
+  ];
+  function fieldOf(label) {
+    for (var i = 0; i < LABEL_F.length; i++) if (LABEL_F[i].re.test(label)) return LABEL_F[i].f;
+    return null;
+  }
+
+  // 5) 각 블록 순회, 목표 행만 월별로 채움 (첫 매칭 우선)
+  blocks.forEach(function(b) {
+    var country = detectCountry(b);
+    if (country !== 'KR' && country !== 'US') return;
+    for (var r = headerRow + 1; r < vals.length; r++) {
+      var label = String(vals[r][b.labelCol] || '').trim();
+      if (!label) continue;
+      var f = fieldOf(label);
+      if (!f) continue;
+      Object.keys(b.monthCols).forEach(function(cs) {
+        var c = parseInt(cs), mo = b.monthCols[c];
+        if (!out[country][mo]) out[country][mo] = {};
+        if (out[country][mo][f] == null) out[country][mo][f] = toNum(vals[r][c]);
+      });
+    }
+  });
   return out;
 }
 
