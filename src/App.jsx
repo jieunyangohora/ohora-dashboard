@@ -8,6 +8,26 @@ const storage = {
 };
 
 const C = { bg: '#F4EEE8', card: '#FFFFFF', panel: '#FBF7F3', ink: '#241F1B', sub: '#6B6259', subLite: '#9A928A', border: '#E7DCD3', borderStrong: '#D9CABB', accent: '#E8546B', accentSoft: '#FCE9EC', mint: '#2E9E89', mintSoft: '#E4F2EE' };
+
+// AI 인사이트 경량 마크다운 렌더: **굵게**, 불릿(- / •), 이모지 섹션헤더 처리 (원본 ** 기호는 화면에서 제거)
+function renderInsight(text) {
+  const bold = (s) => String(s).split('**').map((p, j) => j % 2 === 1
+    ? <strong key={j} style={{ fontWeight: 800, color: C.ink }}>{p}</strong>
+    : <span key={j}>{p}</span>);
+  const out = [];
+  String(text || '').split('\n').forEach((raw, i) => {
+    const t = raw.trim();
+    if (!t) return;
+    if (/^(📊|💡|🎯|📈|✅|⚠️|🔥|📌|🚀|👍)/.test(t)) {
+      out.push(<div key={i} style={{ fontSize: 14, fontWeight: 800, color: '#5B4FCF', margin: (out.length ? '16px' : '0') + ' 0 7px' }}>{t.replace(/\*\*/g, '')}</div>);
+    } else if (/^[-•]\s/.test(t)) {
+      out.push(<div key={i} style={{ display: 'flex', gap: 8, marginBottom: 7 }}><span style={{ color: '#8B7FE0', fontWeight: 800, flexShrink: 0 }}>•</span><span style={{ flex: 1 }}>{bold(t.replace(/^[-•]\s/, ''))}</span></div>);
+    } else {
+      out.push(<div key={i} style={{ marginBottom: 8 }}>{bold(t)}</div>);
+    }
+  });
+  return out;
+}
 const FONT = "'Apple SD Gothic Neo', -apple-system, BlinkMacSystemFont, sans-serif";
 const SHADOW = '0 1px 3px rgba(40,28,18,0.05)';
 
@@ -290,7 +310,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
             return (
               <div style={{ marginBottom: 6, maxWidth: 460 }}>
                 <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
-                  <span title={"발행 직전 N일 대비 발행 후 N일 판매 증감률"} style={{ fontSize: 10, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
+                  <span title={"발행 직전 N일 대비 발행 후 N일 판매 증감률"} style={{ fontSize: 12.5, fontWeight: 800, color: '#C2185B', cursor: 'help' }}>💰 판매전환</span>
                   <span style={{ display: 'inline-flex', border: `1px solid ${C.border}`, borderRadius: 999, overflow: 'hidden' }}>
                     {[['d1', '1일'], ['d3', '3일'], ['d7', '7일']].map(([k, lab]) => (
                       <button key={k} onClick={() => setSalesWin(k)} style={{ border: 'none', padding: '1px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer', background: salesWin === k ? '#C2185B' : '#fff', color: salesWin === k ? '#fff' : C.sub }}>{lab}</button>
@@ -667,23 +687,23 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                   {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp }) => {
                     const wow = wowDelta(wowKey);
                     return (
-                      <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '8px 14px', flex: '1 1 110px', border: '1px solid #E8E4FF', minWidth: 100 }}>
-                        <div style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 700, marginBottom: 3 }}>{label}</div>
-                        <div style={{ fontSize: 17, fontWeight: 800, color, letterSpacing: '-0.01em', marginBottom: 5 }}>{value}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid #F0EDFF', paddingTop: 5 }}>
+                      <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '11px 16px', flex: '1 1 120px', border: '1px solid #E8E4FF', minWidth: 110 }}>
+                        <div style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 700, marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.01em', marginBottom: 6 }}>{value}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid #F0EDFF', paddingTop: 7 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>전주 대비</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: wowColor(wow) }}>{wowLabel(wow)}</span>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>전주 대비</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: wowColor(wow) }}>{wowLabel(wow)}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(achieveRate) }}>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(achieveRate) }}>
                               {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
                             </span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 9.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: rateColor(mp) }}>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(mp) }}>
                               {mp != null ? `${mp}%` : '—'}
                             </span>
                           </div>
@@ -713,7 +733,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 </div>
               </div>
             ) : aiInsight ? (
-              <div style={{ fontSize: 12.5, color: C.ink, background: '#fff', borderRadius: 10, padding: '14px 16px', border: '1px solid #E8E4FF', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{aiInsight}</div>
+              <div style={{ fontSize: 13, color: C.ink, background: '#fff', borderRadius: 12, padding: '16px 18px', border: '1px solid #E8E4FF', lineHeight: 1.7 }}>{renderInsight(aiInsight)}</div>
             ) : (
               <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.6 }}>
                 💡 이 주차의 오가닉/총 도달 비율, 콘텐츠 타율, 제품군별 성과를 분석하고 다음 주 전략을 Claude AI가 자동 제안합니다.<br />
