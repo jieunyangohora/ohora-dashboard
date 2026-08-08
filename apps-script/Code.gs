@@ -420,6 +420,9 @@ function doGet(e) {
               if (a.hypothesis)  item.hypothesis  = a.hypothesis;
               if (a.analysis)    item.analysis    = a.analysis;
               if (a.salesReview) item.salesReview = a.salesReview;
+              if (a.formatRepeat) item.formatRepeat = a.formatRepeat;
+              if (a.isLoop)      item.isLoop      = a.isLoop;
+              if (a.loopLink)    item.loopLink    = a.loopLink;
               if (a.salesConversion) item.salesConversion = a.salesConversion;
               if (a.productCode && !item.productCode) {
                 item.productCode = a.productCode;
@@ -1016,7 +1019,7 @@ function doPost(e) {
   } catch(err){ return json({ok:false,error:err.toString()}); }
 }
 
-var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','productCode','productName','updatedAt'];
+var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','formatRepeat','productCode','productName','updatedAt'];
 function saveAnalysis(payload) {
   var sheet=getS().getSheetByName('content_analysis')||getS().insertSheet('content_analysis');
   var data=sheet.getDataRange().getValues(), headers=data.length>0?data[0]:[];
@@ -1030,14 +1033,14 @@ function saveAnalysis(payload) {
 function getAnalysisMap() {
   var sheet=getS().getSheetByName('content_analysis'); if(!sheet) return {};
   var data=sheet.getDataRange().getValues(); if(data.length<2) return {};
-  var h=data[0], li=h.indexOf('link'),hi=h.indexOf('hypothesis'),ai=h.indexOf('analysis'),si=h.indexOf('salesConversion'),sri=h.indexOf('salesReview'),ili=h.indexOf('isLoop'),lli=h.indexOf('loopLink'),pci=h.indexOf('productCode'),pni=h.indexOf('productName');
+  var h=data[0], li=h.indexOf('link'),hi=h.indexOf('hypothesis'),ai=h.indexOf('analysis'),si=h.indexOf('salesConversion'),sri=h.indexOf('salesReview'),ili=h.indexOf('isLoop'),lli=h.indexOf('loopLink'),fri=h.indexOf('formatRepeat'),pci=h.indexOf('productCode'),pni=h.indexOf('productName');
   var res={};
   for (var r=1;r<data.length;r++) {
     var link=String(data[r][li]||'').trim(); if(!link) continue;
     var rawLoop=ili>=0?data[r][ili]:''; var isLoop=(rawLoop===true||String(rawLoop).toLowerCase()==='true');
     res[link]={ hypothesis:hi>=0?String(data[r][hi]||''):'', analysis:ai>=0?String(data[r][ai]||''):'',
       salesReview:sri>=0?String(data[r][sri]||''):'', salesConversion:si>=0?Number(data[r][si])||0:0,
-      isLoop:isLoop, loopLink:lli>=0?String(data[r][lli]||''):'',
+      isLoop:isLoop, loopLink:lli>=0?String(data[r][lli]||''):'', formatRepeat:fri>=0?String(data[r][fri]||''):'',
       productCode:pci>=0?String(data[r][pci]||'').trim():'', productName:pni>=0?String(data[r][pni]||'').trim():'' };
   }
   return res;

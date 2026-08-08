@@ -275,13 +275,16 @@ function ContentThumbnail({ item }) {
 }
 
 const REVIEW_FIELDS = [['hypothesis', '💡 가설'], ['analysis', '📝 분석 & 추후 방안'], ['salesReview', '💰 기타리뷰']];
+// 포맷 반복 여부: [값, 글자색, 배경색]
+const FORMAT_REPEAT_OPTS = [['반복&확장', '#1D9E75', '#E1F5EE'], ['개선', '#D97A2B', '#FBEEDF'], ['제거', '#8A8178', '#ECE7E2']];
+const formatRepeatStyle = (v) => (FORMAT_REPEAT_OPTS.find((o) => o[0] === v)) || [v, '#8A8178', '#ECE7E2'];
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
-  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '' });
-  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '' }); }, [open]);
+  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', formatRepeat: '' });
+  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', formatRepeat: item.formatRepeat || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
-  const hasReview = item.hypothesis || item.analysis || item.salesReview || item.isLoop || item.loopLink;
+  const hasReview = item.hypothesis || item.analysis || item.salesReview || item.isLoop || item.loopLink || item.formatRepeat;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, boxShadow: SHADOW }}>
       <div className="flex gap-4 items-center">
@@ -357,6 +360,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                   ? <a href={item.loopLink} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', textDecoration: 'none', flexShrink: 0 }}>🔁 루프북 →</a>
                   : <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', flexShrink: 0 }}>🔁 루프북</span>
               )}
+              {item.formatRepeat && (() => { const [v, fg, bg] = formatRepeatStyle(item.formatRepeat); return <span key="fr" style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: bg, color: fg, flexShrink: 0 }}>♻️ {v}</span>; })()}
               {onEditAnalysis && item.link && <button onClick={() => setOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, border: `1px solid ${C.border}`, background: '#fff', color: C.accent, cursor: 'pointer', flexShrink: 0 }}>✏️ 리뷰 {hasReview ? '수정' : '작성'}</button>}
             </div>
           ) : (
@@ -379,6 +383,21 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                 {draft.isLoop && (
                   <input type="url" value={draft.loopLink} onChange={(e) => setDraft(d => ({ ...d, loopLink: e.target.value }))} onBlur={() => { if (onEditAnalysis && item.link && draft.loopLink !== (item.loopLink || '')) onEditAnalysis(item.link, 'loopLink', draft.loopLink); }} placeholder="노션 루프북 페이지 URL (선택)" style={{ border: '1px solid #D4CCFF', borderRadius: 7, padding: '6px 9px', fontSize: 12, fontFamily: FONT, width: '100%', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
                 )}
+              </div>
+              {/* 포맷 반복 여부 */}
+              <div style={{ background: '#FBF7F3', border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, marginBottom: 7 }}>♻️ 포맷 반복 여부 <span style={{ fontWeight: 500, color: C.subLite }}>(이 포맷을 다음에 어떻게 할지)</span></div>
+                <div className="flex gap-1.5">
+                  {FORMAT_REPEAT_OPTS.map(([v, fg, bg]) => {
+                    const sel = draft.formatRepeat === v;
+                    return (
+                      <button key={v} onClick={() => { const next = sel ? '' : v; setDraft(d => ({ ...d, formatRepeat: next })); if (onEditAnalysis && item.link) onEditAnalysis(item.link, 'formatRepeat', next); }}
+                        style={{ flex: 1, fontSize: 12, fontWeight: 800, padding: '8px 6px', borderRadius: 8, cursor: 'pointer', border: sel ? `1.5px solid ${fg}` : `1px solid ${C.border}`, background: sel ? bg : '#fff', color: sel ? fg : C.subLite, transition: 'all 0.15s' }}>
+                        {v}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => { REVIEW_FIELDS.forEach(([f]) => saveField(f)); setOpen(false); }} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', cursor: 'pointer' }}>저장</button>
@@ -1508,7 +1527,7 @@ export default function Dashboard() {
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
-      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink']; const currentYearStr = "2026";
+      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink', 'formatRepeat']; const currentYearStr = "2026";
       const mergeList = (localList, freshList) => {
         if (!Array.isArray(freshList)) return []; const byLink = {}; (localList || []).forEach((it) => { if (it && it.link) byLink[it.link] = it; });
         return freshList.filter(fresh => fresh && fresh.publishDate && String(fresh.publishDate).startsWith(currentYearStr)).map((raw) => {
