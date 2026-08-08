@@ -329,7 +329,9 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
               prodRows = [['제품', item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]];
             }
             const prodTotal = prodRows.length;
-            const rows = (showAllProd ? prodRows : prodRows.slice(0, 3)).slice();
+            const isMulti = prodTotal > 1;
+            // 멀티 제품: 기본 접힘(제품군 요약만) → 토글로 제품별 전체 펼침. 단일: 그대로 노출.
+            const rows = ((!isMulti || showAllProd) ? prodRows : []).slice();
             if (item.salesCat) rows.push(['제품군', cat ? cat.label : (item.productCategory || '제품군'), item.salesCat[salesWin]]);
             return (
               <div style={{ marginBottom: 6, maxWidth: 460 }}>
@@ -358,9 +360,9 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                       </div>
                     );
                   })}
-                  {prodTotal > 3 && (
-                    <button onClick={() => setShowAllProd(!showAllProd)} style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, color: '#C2185B', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 2px' }}>
-                      {showAllProd ? '접기 ▲' : `제품 ${prodTotal - 3}개 더보기 ▾ (총 ${prodTotal}개)`}
+                  {isMulti && (
+                    <button onClick={() => setShowAllProd(!showAllProd)} style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, color: '#C2185B', background: '#FBF1F4', border: '1px solid #F3D7DE', borderRadius: 6, cursor: 'pointer', padding: '2px 8px' }}>
+                      {showAllProd ? '제품별 상세 접기 ▲' : `📦 제품별 판매성과 ${prodTotal}개 펼치기 ▾`}
                     </button>
                   )}
                 </div>
