@@ -645,10 +645,10 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 return Math.round((projected / target) * 100);
               };
 
-              // 주간 달성률 (weekly achieve rate from GROWTH sheet)
+              // 주간 달성률 (weekly achieve rate from GROWTH sheet) — GAS는 비율(0.98)로 주므로 %로 환산
               const weeklyRate = (key) => {
                 const v = Number(totals(selectedWeek)[key] || 0);
-                return v > 0 ? v : null;
+                return v > 0 ? v * 100 : null;
               };
 
               const kpiTiles = [
