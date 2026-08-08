@@ -1655,8 +1655,8 @@ function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
                       <YAxis tick={{ fontSize: 10, fill: C.sub }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={46} />
                     )}
                     <Tooltip content={<GlobalTip kind={c.kind} />} />
-                    <Line {...(dual ? { yAxisId: 'kr' } : {})} type="monotone" dataKey={c.kr} name="🇰🇷 한국" stroke={KR_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                    <Line {...(dual ? { yAxisId: 'us' } : {})} type="monotone" dataKey={c.us} name="🇺🇸 미국" stroke={US_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                    <Line {...(dual ? { yAxisId: 'kr' } : {})} isAnimationActive={false} type="monotone" dataKey={c.kr} name="🇰🇷 한국" stroke={KR_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                    <Line {...(dual ? { yAxisId: 'us' } : {})} isAnimationActive={false} type="monotone" dataKey={c.us} name="🇺🇸 미국" stroke={US_COLOR} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
