@@ -329,16 +329,24 @@ function doGet(e) {
       var aiMetrics = (amAll[aiCountry] && amAll[aiCountry][aiWeek]) || {};
       var aiSheetName = aiCountry === 'KR' ? SHEET_KR_FEED : SHEET_US_FEED;
       var aiColStart  = aiCountry === 'KR' ? 48 : 49;
-      var aiItems = [];
+      var aiItems = [], aiTrend = [];
       try {
         var aiCached = loadCachedSales();
         var aiSalesMap = (aiCached && aiCached[aiCountry.toLowerCase()]) || {byCode:{},byCat:{}};
         var aiBoth = getFeedBySheet(aiSheetName, 'BOTH', aiSalesMap, aiColStart); // {all:{주차:[...]}, feed:{...}}
         var aiWeekItems = (aiBoth && aiBoth.all && aiBoth.all[aiWeek]) || [];
-        // 전체 발행건(정렬만, 자르지 않음) → generateAiSummary가 정확한 count + top3 사용
+        // 전체 발행건(정렬만, 자르지 않음) → generateAiSummary가 정확한 count + 타율 분석
         aiItems = aiWeekItems.slice().sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); });
-      } catch(e2) { Logger.log('aiSummary items error: '+e2); }
-      return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems));
+        // 최근 6주 추이 (선택 주차 이하, 주차번호순 마지막 6개)
+        var selN = weekNum(aiWeek);
+        var wkList = Object.keys((amAll[aiCountry]||{})).filter(function(w){ return weekNum(w) <= selN; }).sort(function(a,b){ return weekNum(a)-weekNum(b); }).slice(-6);
+        aiTrend = wkList.map(function(wk){
+          var mm = amAll[aiCountry][wk] || {};
+          var cnt = (aiBoth && aiBoth.all && aiBoth.all[wk] || []).length;
+          return { week: wk, views: mm.views||0, sales: mm.sales||0, inflow: mm.inflow||0, itemCount: cnt };
+        });
+      } catch(e2) { Logger.log('aiSummary items/trend error: '+e2); }
+      return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems, aiTrend));
     }
 
     // ── 메인 type=all ──────────────────────────────────────
@@ -1099,46 +1107,55 @@ function authorizeExternalRequest() {
   return r.getResponseCode();
 }
 
-function generateAiSummary(country, week, accountMetrics, weekItems) {
+function generateAiSummary(country, week, accountMetrics, weekItems, trend) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY가 GAS Script Properties에 설정되지 않았습니다. GAS 에디터 > 프로젝트 설정 > 스크립트 속성에 추가해주세요.' };
   try {
     var m = accountMetrics || {};
-    var reach = m.reach || 0, organicReach = m.organicReach || 0, views = m.views || 0;
-    var sales = m.sales || 0, inflow = m.inflow || 0, engagement = m.engagement || 0;
+    var reach = m.reach || 0, organicReach = m.organicReach || 0, views = m.views || 0, organicViews = m.organicViews || 0;
+    var sales = m.sales || 0, inflow = m.inflow || 0;
+    var salesRate  = m.salesAchieveRate  != null ? Math.round(m.salesAchieveRate * 100)  : null;
+    var inflowRate = m.inflowAchieveRate != null ? Math.round(m.inflowAchieveRate * 100) : null;
     var organicRatio = reach > 0 ? Math.round((organicReach / reach) * 100) : 0;
     var itemCount = (weekItems || []).length;
-    var topItems = (weekItems || []).slice(0, 3).map(function(it) { return (it.title || '(제목없음)') + ' (도달:' + (it.reach||0) + ')'; }).join('\n  - ');
+    var isKR = country === 'KR';
+    // 발행 콘텐츠 도달 분포 (타율/집중도 분석용, 최대 30개 = 사실상 전량)
+    var itemLines = (weekItems || []).slice(0, 30).map(function(it) {
+      return '- ' + String(it.title || '(제목없음)').slice(0,40) + ' | 도달 ' + (Number(it.reach)||0).toLocaleString() + ' | 참여 ' + (Number(it.engagement)||0).toLocaleString();
+    }).join('\n');
+    // 최근 주차별 추이 (성장/정체/하락 판단용)
+    var trendLines = (trend || []).map(function(t) {
+      return '- ' + t.week + ': 조회 ' + (t.views||0).toLocaleString() + ' / 매출 ₩' + (t.sales||0).toLocaleString() + ' / 유입 ' + (t.inflow||0).toLocaleString() + ' / 발행 ' + (t.itemCount||0) + '건';
+    }).join('\n');
+
     var prompt = [
-      '당신은 오호라(네일 브랜드) 콘텐츠팀의 SNS 성과 분석 전문가입니다.',
-      '아래 ' + country + ' 마켓 ' + week + ' 주차 성과 데이터를 분석하고, 한국어로 핵심 인사이트와 다음 주 전략을 제안해주세요.',
+      '당신은 오호라(네일 브랜드) 콘텐츠팀의 SNS 성과 분석가입니다.',
+      country + ' 마켓 ' + week + ' 주차 성과를 **정량 데이터 기준으로만** 분석하세요.',
+      '⚠️ 콘텐츠 실물(영상·이미지·훅·기획)은 볼 수 없습니다. "왜 먹혔나" 같은 크리에이티브 추측은 절대 하지 말고, 숫자로 판단 가능한 것만 말하세요.',
       '',
-      '## 주요 지표',
-      '- 총 도달: ' + reach.toLocaleString() + ' (오가닉 비율: ' + organicRatio + '%)',
-      '- 오가닉 도달: ' + organicReach.toLocaleString(),
-      '- 조회수: ' + views.toLocaleString(),
-      '- 참여수: ' + engagement.toLocaleString(),
-      '- 매출: ₩' + sales.toLocaleString(),
-      '- 유입: ' + inflow.toLocaleString(),
+      '## 이번 주 지표 (' + week + ')',
+      '- 조회수: ' + views.toLocaleString() + (isKR ? ' (오가닉 ' + organicViews.toLocaleString() + ')' : ''),
+      '- 매출: ₩' + sales.toLocaleString() + (salesRate  != null ? ' (목표 달성 ' + salesRate  + '%)' : ''),
+      '- 유입: '   + inflow.toLocaleString() + (inflowRate != null ? ' (목표 달성 ' + inflowRate + '%)' : ''),
       '- 발행 콘텐츠: ' + itemCount + '건',
+      (isKR ? '- 총 도달 대비 오가닉 비율: ' + organicRatio + '% (총 ' + reach.toLocaleString() + ' / 오가닉 ' + organicReach.toLocaleString() + ')' : null),
       '',
-      '## 이번 주 TOP 콘텐츠',
-      topItems ? ('  - ' + topItems) : '  데이터 없음',
+      '## 최근 추이 (성장/정체/하락 판단용)',
+      trendLines || '(데이터 없음)',
       '',
-      '## 도달 해석 기준',
-      '- 총 도달 = 채널 성장 + 이전 주차 유지 + 광고 포함',
-      '- 오가닉 도달 = 이번 주 순수 콘텐츠 성과 (가장 중요)',
-      '- 오가닉 비율이 낮을수록 광고 의존도가 높음을 의미',
+      '## 이번 주 발행 콘텐츠 (도달순 — 타율/집중도 분석용)',
+      itemLines || '(발행 없음)',
       '',
-      '아래 형식으로 **간결하게** 답변하세요. 핵심만, 장황한 서술·수식어·부연설명은 빼세요:',
-      '📊 **이번 주 핵심 현황** — 2문장 이내',
-      '💡 **주요 인사이트** — 불릿 2~3개, 각 한 문장',
-      '🎯 **다음 주 전략 제안** — 불릿 2~3개, 각 한 문장(바로 실행 가능한 액션)',
+      '아래 3개 섹션으로 **간결하게** 답변하세요. 장황한 서술·수식어 금지:',
+      '📊 **성과 요약** — 전주 대비 변화 + 목표 달성 현황 + 최근 추이 방향(성장/정체/하락). 2문장 이내.',
+      '🎯 **콘텐츠 타율** — 발행 ' + itemCount + '건의 성과 분포 진단: 상위 소수에 쏠린 "집중형"인지 고르게 나온 "분산형"인지, 구체 수치(예: 상위 N건이 도달 X%)로. 2문장 이내.',
+      '🚀 **다음 주 액션** — 불릿 2~3개, 각 한 문장, 데이터 기반 실행안.',
       '',
       '규칙:',
-      '- 각 불릿은 "**핵심 라벨**: 짧은 설명" 형식 (라벨은 **굵게**).',
-      '- 숫자는 만/억 단위로 읽기 쉽게. 한 불릿이 두 줄 넘지 않게.',
-    ].join('\n');
+      '- 각 불릿은 "**라벨**: 설명" 형식(라벨 굵게). 숫자는 만/억 단위로.',
+      (isKR ? null : '- US는 광고 비중이 낮아 총/오가닉 도달 비율은 의미 없으니 언급하지 마세요.'),
+      '- 콘텐츠 크리에이티브·기획 의도 추측 금지. 오직 수치 해석만.'
+    ].filter(function(x){ return x !== null; }).join('\n');
 
     var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

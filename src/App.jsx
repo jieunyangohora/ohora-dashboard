@@ -16,8 +16,9 @@ function renderInsight(text) {
     : <span key={j}>{p}</span>);
   const out = [];
   String(text || '').split('\n').forEach((raw, i) => {
-    const t = raw.trim();
+    let t = raw.trim();
     if (!t) return;
+    t = t.replace(/^#{1,6}\s*/, ''); // ## 마크다운 헤더 마커 제거
     if (/^(📊|💡|🎯|📈|✅|⚠️|🔥|📌|🚀|👍)/.test(t)) {
       out.push(<div key={i} style={{ fontSize: 14, fontWeight: 800, color: '#5B4FCF', margin: (out.length ? '16px' : '0') + ' 0 7px' }}>{t.replace(/\*\*/g, '')}</div>);
     } else if (/^[-•]\s/.test(t)) {
