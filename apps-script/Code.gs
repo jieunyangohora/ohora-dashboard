@@ -423,6 +423,7 @@ function doGet(e) {
               if (a.formatRepeat) item.formatRepeat = a.formatRepeat;
               if (a.isLoop)      item.isLoop      = a.isLoop;
               if (a.loopLink)    item.loopLink    = a.loopLink;
+              if (a.loopTitle)   item.loopTitle   = a.loopTitle;
               if (a.salesConversion) item.salesConversion = a.salesConversion;
               if (a.productCode && !item.productCode) {
                 item.productCode = a.productCode;
@@ -1019,7 +1020,7 @@ function doPost(e) {
   } catch(err){ return json({ok:false,error:err.toString()}); }
 }
 
-var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','formatRepeat','productCode','productName','updatedAt'];
+var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','loopTitle','formatRepeat','productCode','productName','updatedAt'];
 function saveAnalysis(payload) {
   var sheet=getS().getSheetByName('content_analysis')||getS().insertSheet('content_analysis');
   var data=sheet.getDataRange().getValues(), headers=data.length>0?data[0]:[];
@@ -1040,7 +1041,7 @@ function getAnalysisMap() {
     var rawLoop=ili>=0?data[r][ili]:''; var isLoop=(rawLoop===true||String(rawLoop).toLowerCase()==='true');
     res[link]={ hypothesis:hi>=0?String(data[r][hi]||''):'', analysis:ai>=0?String(data[r][ai]||''):'',
       salesReview:sri>=0?String(data[r][sri]||''):'', salesConversion:si>=0?Number(data[r][si])||0:0,
-      isLoop:isLoop, loopLink:lli>=0?String(data[r][lli]||''):'', formatRepeat:fri>=0?String(data[r][fri]||''):'',
+      isLoop:isLoop, loopLink:lli>=0?String(data[r][lli]||''):'', loopTitle:(h.indexOf('loopTitle')>=0?String(data[r][h.indexOf('loopTitle')]||''):''), formatRepeat:fri>=0?String(data[r][fri]||''):'',
       productCode:pci>=0?String(data[r][pci]||'').trim():'', productName:pni>=0?String(data[r][pni]||'').trim():'' };
   }
   return res;
@@ -1124,7 +1125,7 @@ function generateAiSummary(country, week, accountMetrics, weekItems, trend) {
     var isKR = country === 'KR';
     // 발행 콘텐츠 도달 분포 (타율/집중도 분석용, 최대 30개 = 사실상 전량)
     var itemLines = (weekItems || []).slice(0, 30).map(function(it) {
-      return '- ' + String(it.title || '(제목없음)').slice(0,40) + ' | 도달 ' + (Number(it.reach)||0).toLocaleString() + ' | 참여 ' + (Number(it.engagement)||0).toLocaleString();
+      return '- ' + (it.isReel ? '[릴스]' : '[피드]') + ' ' + String(it.title || '(제목없음)').slice(0,40) + ' | 도달 ' + (Number(it.reach)||0).toLocaleString() + ' | 참여 ' + (Number(it.engagement)||0).toLocaleString();
     }).join('\n');
     // 최근 주차별 추이 (성장/정체/하락 판단용)
     var trendLines = (trend || []).map(function(t) {
@@ -1151,12 +1152,13 @@ function generateAiSummary(country, week, accountMetrics, weekItems, trend) {
       '',
       '아래 3개 섹션으로 **간결하게** 답변하세요. 장황한 서술·수식어 금지:',
       '📊 **성과 요약** — 전주 대비 변화 + 목표 달성 현황 + 최근 추이 방향(성장/정체/하락). 2문장 이내.',
-      '🎯 **콘텐츠 타율** — 발행 ' + itemCount + '건의 성과 분포 진단: 상위 소수에 쏠린 "집중형"인지 고르게 나온 "분산형"인지, 구체 수치(예: 상위 N건이 도달 X%)로. 2문장 이내.',
+      '🎯 **콘텐츠 타율** — 성과 분포 진단(집중형 vs 분산형)을 구체 수치(상위 N건이 도달 X%)로. 2문장 이내.',
+      '   ⚠️ 타율 계산은 **릴스([릴스]) 중심**으로 하세요. 피드([피드])는 **고성과 건만 포함**하고, 저성과 피드는 타율 base에서 제외하세요(피드는 원래 도달이 낮아 타율을 왜곡함).',
       '🚀 **다음 주 액션** — 불릿 2~3개, 각 한 문장, 데이터 기반 실행안.',
       '',
       '규칙:',
       '- 각 불릿은 "**라벨**: 설명" 형식(라벨 굵게). 숫자는 만/억 단위로.',
-      (isKR ? null : '- US는 광고 비중이 낮아 총/오가닉 도달 비율은 의미 없으니 언급하지 마세요.'),
+      (isKR ? '- 오가닉 비율(광고 의존도) 관점을 성과 요약 또는 액션에 반드시 포함하세요.' : '- US는 광고 비중이 낮아 총/오가닉 도달 비율은 의미 없으니 언급하지 마세요.'),
       '- 콘텐츠 크리에이티브·기획 의도 추측 금지. 오직 수치 해석만.'
     ].filter(function(x){ return x !== null; }).join('\n');
 

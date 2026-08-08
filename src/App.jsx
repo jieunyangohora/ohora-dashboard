@@ -281,8 +281,8 @@ const formatRepeatStyle = (v) => (FORMAT_REPEAT_OPTS.find((o) => o[0] === v)) ||
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
-  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', formatRepeat: '' });
-  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', formatRepeat: item.formatRepeat || '' }); }, [open]);
+  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', loopTitle: '', formatRepeat: '' });
+  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', loopTitle: item.loopTitle || '', formatRepeat: item.formatRepeat || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
   const hasReview = item.hypothesis || item.analysis || item.salesReview || item.isLoop || item.loopLink || item.formatRepeat;
   return (
@@ -357,8 +357,8 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
               {item.salesReview && <span style={{ flex: '1 1 200px' }}>💰 <b style={{ color: C.ink }}>기타리뷰</b> {item.salesReview}</span>}
               {item.isLoop && (
                 item.loopLink
-                  ? <a href={item.loopLink} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', textDecoration: 'none', flexShrink: 0 }}>🔁 루프북 →</a>
-                  : <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', flexShrink: 0 }}>🔁 루프북</span>
+                  ? <a href={item.loopLink} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', textDecoration: 'none', flexShrink: 0 }}>🔁 {item.loopTitle || '루프북'} →</a>
+                  : <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: '#F0EDFF', color: '#5B4FCF', border: '1px solid #D4CCFF', flexShrink: 0 }}>🔁 {item.loopTitle || '루프북'}</span>
               )}
               {item.formatRepeat && (() => { const [v, fg, bg] = formatRepeatStyle(item.formatRepeat); return <span key="fr" style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 9px', borderRadius: 999, background: bg, color: fg, flexShrink: 0 }}>♻️ {v}</span>; })()}
               {onEditAnalysis && item.link && <button onClick={() => setOpen(true)} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, border: `1px solid ${C.border}`, background: '#fff', color: C.accent, cursor: 'pointer', flexShrink: 0 }}>✏️ 리뷰 {hasReview ? '수정' : '작성'}</button>}
@@ -373,15 +373,19 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
               ))}
               {/* 루프북 등록 */}
               <div style={{ background: '#F6F4FF', border: '1px solid #D4CCFF', borderRadius: 10, padding: '10px 12px' }}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#5B4FCF' }}>🔁 루프북 등록</span>
+                <div className="flex items-center gap-3 mb-1">
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#5B4FCF' }}>🔁 루프 해당 여부</span>
                   <div onClick={() => { const next = !draft.isLoop; setDraft(d => ({ ...d, isLoop: next })); if (onEditAnalysis && item.link) onEditAnalysis(item.link, 'isLoop', next); }} role="switch" aria-checked={draft.isLoop} style={{ width: 36, height: 20, borderRadius: 10, background: draft.isLoop ? '#5B4FCF' : '#D4CCFF', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}>
                     <div style={{ position: 'absolute', top: 2, left: draft.isLoop ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                   </div>
                   <span style={{ fontSize: 11, color: draft.isLoop ? '#5B4FCF' : '#9A928A', fontWeight: 700 }}>{draft.isLoop ? '해당' : '미해당'}</span>
                 </div>
+                <div style={{ fontSize: 10.5, color: '#9A928A', lineHeight: 1.5, marginBottom: draft.isLoop ? 8 : 0 }}>루프에 해당하는지 체크하고, 해당하면 아래에 <b style={{ color: '#7C72C8' }}>루프 제목</b>과 <b style={{ color: '#7C72C8' }}>루프북 내 해당 페이지 링크</b>를 넣어주세요.</div>
                 {draft.isLoop && (
-                  <input type="url" value={draft.loopLink} onChange={(e) => setDraft(d => ({ ...d, loopLink: e.target.value }))} onBlur={() => { if (onEditAnalysis && item.link && draft.loopLink !== (item.loopLink || '')) onEditAnalysis(item.link, 'loopLink', draft.loopLink); }} placeholder="노션 루프북 페이지 URL (선택)" style={{ border: '1px solid #D4CCFF', borderRadius: 7, padding: '6px 9px', fontSize: 12, fontFamily: FONT, width: '100%', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
+                  <div className="flex flex-col gap-1.5">
+                    <input type="text" value={draft.loopTitle} onChange={(e) => setDraft(d => ({ ...d, loopTitle: e.target.value }))} onBlur={() => { if (onEditAnalysis && item.link && draft.loopTitle !== (item.loopTitle || '')) onEditAnalysis(item.link, 'loopTitle', draft.loopTitle); }} placeholder="루프 제목 (예: 여름 페디 시리즈)" style={{ border: '1px solid #D4CCFF', borderRadius: 7, padding: '6px 9px', fontSize: 12, fontFamily: FONT, width: '100%', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
+                    <input type="url" value={draft.loopLink} onChange={(e) => setDraft(d => ({ ...d, loopLink: e.target.value }))} onBlur={() => { if (onEditAnalysis && item.link && draft.loopLink !== (item.loopLink || '')) onEditAnalysis(item.link, 'loopLink', draft.loopLink); }} placeholder="루프북 내 해당 페이지 URL" style={{ border: '1px solid #D4CCFF', borderRadius: 7, padding: '6px 9px', fontSize: 12, fontFamily: FONT, width: '100%', background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
+                  </div>
                 )}
               </div>
               {/* 포맷 반복 여부 */}
@@ -1527,7 +1531,7 @@ export default function Dashboard() {
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
-      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink', 'formatRepeat']; const currentYearStr = "2026";
+      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink', 'loopTitle', 'formatRepeat']; const currentYearStr = "2026";
       const mergeList = (localList, freshList) => {
         if (!Array.isArray(freshList)) return []; const byLink = {}; (localList || []).forEach((it) => { if (it && it.link) byLink[it.link] = it; });
         return freshList.filter(fresh => fresh && fresh.publishDate && String(fresh.publishDate).startsWith(currentYearStr)).map((raw) => {
