@@ -45,7 +45,7 @@ const ACCOUNT_METRICS = {
 const CONTENT_METRICS = { reach: { label: '도달', icon: Eye, color: '#3E8FB0' }, views: { label: '조회수', icon: PlayCircle, color: '#4C6FBF' }, engagement: { label: '참여', icon: Activity, color: '#6C5CE7' }, likes: { label: '좋아요', icon: Heart, color: '#E8546B' }, comments: { label: '댓글', icon: MessageCircle, color: '#4C6FBF' }, saves: { label: '저장', icon: Bookmark, color: '#E8546B' }, shares: { label: '공유', icon: Share2, color: '#E08A2B' } };
 const CONTENT_CORE = ['reach', 'views', 'engagement']; const CONTENT_SUB = ['likes', 'comments', 'saves', 'shares'];
 const FEED_METRICS = { saves: { label: '저장수', icon: Bookmark, color: '#E8546B' }, shares: { label: '공유수', icon: Share2, color: '#E08A2B' }, profileActivity: { label: '프로필 활동', icon: UserCheck, color: '#6C5CE7' }, reach: { label: '도달', icon: Eye, color: '#3E8FB0' }, likes: { label: '좋아요', icon: Heart, color: '#E8546B' }, comments: { label: '댓글', icon: MessageCircle, color: '#4C6FBF' }, follows: { label: '팔로우', icon: UserPlus, color: '#2E9E89' } };
-const FEED_CORE = ['saves', 'shares', 'profileActivity']; const FEED_SUB = ['reach', 'likes', 'comments', 'follows'];
+const FEED_CORE = ['saves', 'shares', 'profileActivity', 'follows']; const FEED_SUB = ['reach', 'likes', 'comments'];
 
 const initialWeekMeta = [{ key: 'W18', month: '2026-05' }, { key: 'W19', month: '2026-05' }, { key: 'W20', month: '2026-05' }, { key: 'W21', month: '2026-05' }, { key: 'W22', month: '2026-05' }, { key: 'W23', month: '2026-06' }, { key: 'W24', month: '2026-06' }];
 const fmt = (n) => Number(Math.round(n || 0)).toLocaleString('ko-KR'); 
@@ -721,14 +721,11 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 return v > 0 ? v * 100 : null;
               };
 
-              const monthNewFollowers = elapsedMonthWeeks.reduce((s, w) => s + Number(totals(w.key).newFollowers || 0), 0);
-
               const kpiTiles = [
                 { label: '총 조회수', value: fmt(totals(selectedWeek).views), color: '#4C6FBF', wowKey: 'views', achieveRate: weeklyRate('viewsAchieveRate'), monthlyProj: monthlyProj('views', 'viewsTarget') },
                 { label: '오가닉 조회수', value: fmt(totals(selectedWeek).organicViews), color: '#2E9E89', wowKey: 'organicViews', achieveRate: weeklyRate('organicViewsAchieveRate'), monthlyProj: monthlyProj('organicViews', 'organicViewsTarget') },
                 { label: '매출', value: fmtMetric('sales', totals(selectedWeek).sales), color: '#E8546B', wowKey: 'sales', achieveRate: weeklyRate('salesAchieveRate'), monthlyProj: monthlyProj('sales', 'salesTarget') },
                 { label: '유입', value: fmt(totals(selectedWeek).inflow), color: '#2E9E89', wowKey: 'inflow', achieveRate: weeklyRate('inflowAchieveRate'), monthlyProj: monthlyProj('inflow', 'inflowTarget') },
-                { label: '팔로워(누적)', value: fmt(totals(selectedWeek).followers), color: '#6C5CE7', wowKey: 'followers', type: 'follow', weekNew: Number(totals(selectedWeek).newFollowers || 0), monthNew: monthNewFollowers },
               ];
 
               const rateColor = (v) => v == null ? '#9A928A' : v >= 100 ? '#2E9E89' : v >= 80 ? '#E0833A' : '#E8546B';
@@ -737,7 +734,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
 
               return (
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp, type, weekNew, monthNew }) => {
+                  {kpiTiles.map(({ label, value, color, wowKey, achieveRate, monthlyProj: mp }) => {
                     const wow = wowDelta(wowKey);
                     return (
                       <div key={label} style={{ background: '#fff', borderRadius: 10, padding: '11px 16px', flex: '1 1 120px', border: '1px solid #E8E4FF', minWidth: 110 }}>
@@ -745,40 +742,21 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                         <div style={{ fontSize: 18, fontWeight: 800, color, letterSpacing: '-0.01em', marginBottom: 6 }}>{value}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid #F0EDFF', paddingTop: 7 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>전주 대비{type === 'follow' ? ' 증감율' : ''}</span>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>전주 대비</span>
                             <span style={{ fontSize: 12.5, fontWeight: 800, color: wowColor(wow) }}>{wowLabel(wow)}</span>
                           </div>
-                          {type === 'follow' ? (
-                            <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 신규</span>
-                                <span style={{ fontSize: 12.5, fontWeight: 800, color: weekNew > 0 ? '#2E9E89' : weekNew < 0 ? '#E8546B' : '#9A928A' }}>
-                                  {weekNew > 0 ? '+' : ''}{fmt(weekNew)}
-                                </span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 누적신규</span>
-                                <span style={{ fontSize: 12.5, fontWeight: 800, color: monthNew > 0 ? '#2E9E89' : monthNew < 0 ? '#E8546B' : '#9A928A' }}>
-                                  {monthNew > 0 ? '+' : ''}{fmt(monthNew)}
-                                </span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
-                                <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(achieveRate) }}>
-                                  {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
-                                </span>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
-                                <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(mp) }}>
-                                  {mp != null ? `${mp}%` : '—'}
-                                </span>
-                              </div>
-                            </>
-                          )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>주간 달성</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(achieveRate) }}>
+                              {achieveRate != null ? `${Number(achieveRate).toFixed(0)}%` : '—'}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 11.5, color: '#9A928A', fontWeight: 600 }}>월 예상 달성</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 800, color: rateColor(mp) }}>
+                              {mp != null ? `${mp}%` : '—'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -822,6 +800,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             <ReachOrganicCard mkey="views" organicKey="organicViews" value={totals(selectedWeek).views} organicValue={totals(selectedWeek).organicViews} delta={wowDelta('views')} organicDelta={wowDelta('organicViews')} />
             <ReachOrganicCard mkey="reach" organicKey="organicReach" value={totals(selectedWeek).reach} organicValue={totals(selectedWeek).organicReach} delta={wowDelta('reach')} organicDelta={wowDelta('organicReach')} />
             <HeroCard metricsMap={ACCOUNT_METRICS} mkey="engagement" value={totals(selectedWeek).engagement} delta={wowDelta('engagement')} />
+            <HeroCard metricsMap={ACCOUNT_METRICS} mkey="followers" value={totals(selectedWeek).followers} delta={wowDelta('followers')} sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.mint }}>신규 +{fmt(totals(selectedWeek).newFollowers)}</span>} tooltip={"채널 누적 팔로워 수입니다.\n\n전주 대비 = 팔로워 증감율(%)\n신규 = 이번 주 새로 유입된 팔로워"} />
           </div>
           <div className="flex flex-wrap gap-3 mb-6">
             <HeroCard metricsMap={ACCOUNT_METRICS} mkey="contentsCount" value={weekItems.length} delta={prevWeek ? (() => { const prev = (allContents[countryKey]?.[prevWeek] || []).length; return prev ? ((weekItems.length - prev) / prev) * 100 : null; })() : null} sub={<span style={{ fontSize: 11, fontWeight: 700, color: C.sub }}>🎬 릴스 {weekReelCount} · 🖼️ 피드 {weekFeedCount}</span>} />
