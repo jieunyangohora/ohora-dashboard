@@ -281,6 +281,7 @@ const formatRepeatStyle = (v) => (FORMAT_REPEAT_OPTS.find((o) => o[0] === v)) ||
 function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, onEditAnalysis }) {
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
+  const [showAllProd, setShowAllProd] = useState(false);
   const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', loopTitle: '', formatRepeat: '' });
   useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', loopTitle: item.loopTitle || '', formatRepeat: item.formatRepeat || '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
@@ -308,8 +309,16 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
           })()}
           {(item.salesProd || item.salesCat) ? (() => {
             const cat = PRODUCT_CATS.find((c) => c.key === item.productCategory);
-            const rows = [];
-            if (item.salesProd) rows.push(['제품', item.productCode || '노출 제품', item.salesProd[salesWin]]);
+            const rankLift = (wo) => { const p = liftPct(wo); return p === null ? -Infinity : (p === Infinity ? 1e9 : p); };
+            // 제품별 행 (멀티: salesProdList → 성과순, 단일: salesProd)
+            let prodRows = [];
+            if (item.salesProdList && item.salesProdList.length > 1) {
+              prodRows = item.salesProdList.map((p) => ['제품', p.name || p.code, p.lift ? p.lift[salesWin] : null]).sort((a, b) => rankLift(b[2]) - rankLift(a[2]));
+            } else if (item.salesProd) {
+              prodRows = [['제품', item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]];
+            }
+            const prodTotal = prodRows.length;
+            const rows = (showAllProd ? prodRows : prodRows.slice(0, 3)).slice();
             if (item.salesCat) rows.push(['제품군', cat ? cat.label : (item.productCategory || '제품군'), item.salesCat[salesWin]]);
             return (
               <div style={{ marginBottom: 6, maxWidth: 460 }}>
@@ -322,13 +331,13 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                   </span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  {rows.map(([kind, name, wo]) => {
+                  {rows.map(([kind, name, wo], ri) => {
                     const p = liftPct(wo); const g = liftGrade(p);
                     const isNew = p === Infinity;
                     const col = p === null ? C.subLite : (isNew || p >= 0 ? '#1D9E75' : '#E24B4A');
                     const txt = p === null ? '데이터 없음' : (isNew ? '신규 발생' : `${p > 0 ? '+' : ''}${p}%`);
                     return (
-                      <div key={kind} className="flex items-center justify-between gap-2" style={{ fontSize: 11, background: C.panel, borderRadius: 6, padding: '3px 8px' }}>
+                      <div key={kind + ri} className="flex items-center justify-between gap-2" style={{ fontSize: 11, background: kind === '제품군' ? '#F6F1EC' : C.panel, borderRadius: 6, padding: '3px 8px' }}>
                         <span style={{ color: C.sub, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b style={{ color: C.ink }}>{kind}</b> {name}</span>
                         <span className="flex items-center gap-2 flex-shrink-0">
                           {wo && <span style={{ color: C.subLite, fontSize: 10 }}>{wo.b}→{wo.a}건</span>}
@@ -338,6 +347,11 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                       </div>
                     );
                   })}
+                  {prodTotal > 3 && (
+                    <button onClick={() => setShowAllProd(!showAllProd)} style={{ alignSelf: 'flex-start', fontSize: 10.5, fontWeight: 700, color: '#C2185B', background: 'none', border: 'none', cursor: 'pointer', padding: '1px 2px' }}>
+                      {showAllProd ? '접기 ▲' : `제품 ${prodTotal - 3}개 더보기 ▾ (총 ${prodTotal}개)`}
+                    </button>
+                  )}
                 </div>
               </div>
             );

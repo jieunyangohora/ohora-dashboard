@@ -523,7 +523,17 @@ function getFeedBySheet(sheetName, mode, salesMap, productColStart) {
       w4:   { reach:toNum(row[43]), views:toNum(row[44]), engagement:toNum(row[45]) }
     };
     if (salesMap) {
-      if (productCode && salesMap.byCode) item.salesProd = liftWindows(salesMap.byCode, productCode, dateStr);
+      if (productCode && salesMap.byCode) {
+        // 멀티 제품(콤마/、 구분): 제품별로 각각 판매전환 계산 (하이픈은 코드 일부이므로 분리 안 함)
+        var _codes = productCode.split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
+        var _names = String(productName||'').split(/[,、]/).map(function(s){ return s.trim(); });
+        if (_codes.length > 1) {
+          item.salesProdList = _codes.map(function(c, ci){ return { code: c, name: _names[ci] || '', lift: liftWindows(salesMap.byCode, c, dateStr) }; });
+          item.salesProd = liftWindows(salesMap.byCode, _codes[0], dateStr); // 대표(첫 제품) — 정렬·등급 호환
+        } else {
+          item.salesProd = liftWindows(salesMap.byCode, _codes[0] || productCode, dateStr);
+        }
+      }
       var catKey = CAT_MAP[productType] || '';
       if (catKey && salesMap.byCat) item.salesCat = liftWindows(salesMap.byCat, catKey, dateStr);
     }
