@@ -439,6 +439,7 @@ function doGet(e) {
               if (a.isLoop)      item.isLoop      = a.isLoop;
               if (a.loopLink)    item.loopLink    = a.loopLink;
               if (a.loopTitle)   item.loopTitle   = a.loopTitle;
+              if (a.follows !== undefined && a.follows !== '') item.follows = Number(a.follows) || 0; // 피드 팔로우수 수동입력
               if (a.salesConversion) item.salesConversion = a.salesConversion;
               if (a.productCode && !item.productCode) {
                 item.productCode = a.productCode;
@@ -496,10 +497,13 @@ function getFeedBySheet(sheetName, mode, salesMap, productColStart) {
 
   // 코드→정식이름 사전: 코드 컬럼/이름 컬럼은 개수·순서가 안 맞을 때가 많아 위치매핑은 불안정.
   // 단일 제품(또는 개수 일치) 행에서 신뢰 가능한 매핑만 모아 코드별 정식 이름을 확정한다.
+  // -OF 등 변형 접미사를 떼어 기준코드로 정규화(같은 디자인의 SKU 변형 통합)
+  function normCode(c){ return String(c||'').trim().replace(/-OF$/i, ''); }
+  function uniqBase(arr){ var seen={}, out=[]; arr.forEach(function(c){ var b=normCode(c); if(b && !seen[b]){ seen[b]=1; out.push(b); } }); return out; }
   var codeNameMap = {};
   if (codeCol >= 0 && nameCol >= 0) {
     data.forEach(function(row) {
-      var cs = String(row[codeCol]||'').split(/[,、]/).map(function(s){return s.trim();}).filter(Boolean);
+      var cs = uniqBase(String(row[codeCol]||'').split(/[,、]/));
       var ns = String(row[nameCol]||'').split(/[,、]/).map(function(s){return s.trim();}).filter(Boolean);
       if (cs.length === 1 && ns.length === 1) { if (!codeNameMap[cs[0]]) codeNameMap[cs[0]] = ns[0]; }
       else if (cs.length > 1 && cs.length === ns.length) { cs.forEach(function(c,i){ if(!codeNameMap[c]) codeNameMap[c]=ns[i]; }); }
@@ -544,10 +548,9 @@ function getFeedBySheet(sheetName, mode, salesMap, productColStart) {
     if (salesMap) {
       if (productCode && salesMap.byCode) {
         // 멀티 제품(콤마/、 구분): 제품별로 각각 판매전환 계산 (하이픈은 코드 일부이므로 분리 안 함)
-        var _codesRaw = productCode.split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
         var _names = String(productName||'').split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
-        // 코드 중복 제거(같은 SKU 두 번 방지)
-        var _codes = _codesRaw.filter(function(c, i){ return _codesRaw.indexOf(c) === i; });
+        // -OF 변형 통합 + 기준코드 중복 제거(같은 디자인 두 번 방지)
+        var _codes = uniqBase(productCode.split(/[,、]/));
         var _pairable = (_names.length === _codes.length); // 개수 일치 시에만 위치매핑 보조 사용
         if (_codes.length > 1) {
           // 이름은 코드→정식이름 사전 우선, 없으면 개수 일치 시 위치매핑, 그래도 없으면 공란(코드만 표시)
@@ -1065,7 +1068,7 @@ function doPost(e) {
   } catch(err){ return json({ok:false,error:err.toString()}); }
 }
 
-var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','loopTitle','formatRepeat','productCode','productName','updatedAt'];
+var ANALYSIS_HEADERS = ['link','hypothesis','analysis','salesConversion','salesReview','isLoop','loopLink','loopTitle','formatRepeat','productCode','productName','follows','updatedAt'];
 function saveAnalysis(payload) {
   var sheet=getS().getSheetByName('content_analysis')||getS().insertSheet('content_analysis');
   var data=sheet.getDataRange().getValues(), headers=data.length>0?data[0]:[];
@@ -1087,7 +1090,8 @@ function getAnalysisMap() {
     res[link]={ hypothesis:hi>=0?String(data[r][hi]||''):'', analysis:ai>=0?String(data[r][ai]||''):'',
       salesReview:sri>=0?String(data[r][sri]||''):'', salesConversion:si>=0?Number(data[r][si])||0:0,
       isLoop:isLoop, loopLink:lli>=0?String(data[r][lli]||''):'', loopTitle:(h.indexOf('loopTitle')>=0?String(data[r][h.indexOf('loopTitle')]||''):''), formatRepeat:fri>=0?String(data[r][fri]||''):'',
-      productCode:pci>=0?String(data[r][pci]||'').trim():'', productName:pni>=0?String(data[r][pni]||'').trim():'' };
+      productCode:pci>=0?String(data[r][pci]||'').trim():'', productName:pni>=0?String(data[r][pni]||'').trim():'',
+      follows:(h.indexOf('follows')>=0 && data[r][h.indexOf('follows')]!=='' ? Number(data[r][h.indexOf('follows')]) : '') };
   }
   return res;
 }

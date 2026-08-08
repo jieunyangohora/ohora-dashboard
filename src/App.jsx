@@ -293,9 +293,11 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
   const [open, setOpen] = useState(false);
   const [salesWin, setSalesWin] = useState('d3');
   const [showAllProd, setShowAllProd] = useState(false);
-  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', loopTitle: '', formatRepeat: '' });
-  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', loopTitle: item.loopTitle || '', formatRepeat: item.formatRepeat || '' }); }, [open]);
+  const [draft, setDraft] = useState({ hypothesis: '', analysis: '', salesReview: '', isLoop: false, loopLink: '', loopTitle: '', formatRepeat: '', follows: '' });
+  useEffect(() => { if (open) setDraft({ hypothesis: item.hypothesis || '', analysis: item.analysis || '', salesReview: item.salesReview || '', isLoop: item.isLoop || false, loopLink: item.loopLink || '', loopTitle: item.loopTitle || '', formatRepeat: item.formatRepeat || '', follows: item.follows != null && item.follows !== '' ? String(item.follows) : '' }); }, [open]);
   const saveField = (f) => { const v = draft[f]; if (onEditAnalysis && item.link && v !== (item[f] || '')) onEditAnalysis(item.link, f, v); };
+  const isFeedCard = coreKeys.includes('follows'); // 피드 카드에서만 팔로우수 수동입력 노출
+  const saveFollows = () => { const cur = item.follows != null && item.follows !== '' ? String(item.follows) : ''; if (onEditAnalysis && item.link && draft.follows !== cur) onEditAnalysis(item.link, 'follows', draft.follows); };
   const hasReview = item.hypothesis || item.analysis || item.salesReview || item.isLoop || item.loopLink || item.formatRepeat;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, boxShadow: SHADOW }}>
@@ -398,6 +400,12 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                   <textarea value={draft[f]} onChange={(e) => setDraft((d) => ({ ...d, [f]: e.target.value }))} onBlur={() => saveField(f)} rows={2} placeholder="입력 시 자동 저장 · 모든 접속자에게 공유됩니다" style={{ border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 9px', fontSize: 12.5, fontFamily: FONT, resize: 'vertical', width: '100%' }} />
                 </label>
               ))}
+              {isFeedCard && (
+                <div style={{ background: '#E8F4EE', border: '1px solid #B7E3CE', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#2E9E89', marginBottom: 6 }}>➕ 팔로우수 <span style={{ fontWeight: 500, color: C.subLite }}>(수동 입력 · 이 콘텐츠로 유입된 팔로워 수)</span></div>
+                  <input type="number" inputMode="numeric" min="0" value={draft.follows} onChange={(e) => setDraft((d) => ({ ...d, follows: e.target.value }))} onBlur={saveFollows} placeholder="예: 12" style={{ border: '1px solid #B7E3CE', borderRadius: 8, padding: '7px 10px', fontSize: 13, fontWeight: 700, fontFamily: FONT, width: 160, background: '#fff', color: C.ink, boxSizing: 'border-box' }} />
+                </div>
+              )}
               {/* 루프북 등록 */}
               <div style={{ background: '#F6F4FF', border: '1px solid #D4CCFF', borderRadius: 10, padding: '10px 12px' }}>
                 <div className="flex items-center gap-3 mb-1">
@@ -431,7 +439,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
                 </div>
               </div>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => { REVIEW_FIELDS.forEach(([f]) => saveField(f)); setOpen(false); }} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', cursor: 'pointer' }}>저장</button>
+                <button onClick={() => { REVIEW_FIELDS.forEach(([f]) => saveField(f)); if (isFeedCard) saveFollows(); setOpen(false); }} style={{ fontSize: 12, fontWeight: 800, padding: '6px 16px', borderRadius: 8, border: 'none', background: C.mint, color: '#fff', cursor: 'pointer' }}>저장</button>
                 <button onClick={() => setOpen(false)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer' }}>닫기</button>
               </div>
             </div>
@@ -1759,7 +1767,7 @@ export default function Dashboard() {
       const nextAccount = { ...accountMetrics };
       COUNTRIES.forEach((c) => { const country = c.key; const gasByWeek = data.accountMetrics?.[country] || {}; nextAccount[country] = { ...(nextAccount[country] || {}) }; Object.keys(gasByWeek).forEach((wk) => { nextAccount[country][wk] = { ...(nextAccount[country][wk] || zeroAccount()), ...gasByWeek[wk] }; }); });
       
-      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink', 'loopTitle', 'formatRepeat']; const currentYearStr = "2026";
+      const PRESERVE_FIELDS = ['hypothesis', 'analysis', 'salesImpact', 'salesReview', 'isLoop', 'loopLink', 'loopTitle', 'formatRepeat', 'follows']; const currentYearStr = "2026";
       const mergeList = (localList, freshList) => {
         if (!Array.isArray(freshList)) return []; const byLink = {}; (localList || []).forEach((it) => { if (it && it.link) byLink[it.link] = it; });
         return freshList.filter(fresh => fresh && fresh.publishDate && String(fresh.publishDate).startsWith(currentYearStr)).map((raw) => {
