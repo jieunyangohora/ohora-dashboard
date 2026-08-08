@@ -324,7 +324,7 @@ function ContentCard({ item, coreKeys, subKeys, metricsMap, grade, salesGrade, o
             // 제품별 행 (멀티: salesProdList → 성과순, 단일: salesProd)
             let prodRows = [];
             if (item.salesProdList && item.salesProdList.length > 1) {
-              prodRows = item.salesProdList.map((p) => ['제품', p.name || p.code, p.lift ? p.lift[salesWin] : null]).sort((a, b) => rankLift(b[2]) - rankLift(a[2]));
+              prodRows = item.salesProdList.map((p) => ['제품', p.name ? `${p.name} · ${p.code}` : p.code, p.lift ? p.lift[salesWin] : null]).sort((a, b) => rankLift(b[2]) - rankLift(a[2]));
             } else if (item.salesProd) {
               prodRows = [['제품', item.productName || item.productCode || '노출 제품', item.salesProd[salesWin]]];
             }
@@ -1558,8 +1558,8 @@ function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
   const charts = [
     { title: '조회수', kr: 'views_KR', us: 'views_US', kind: 'volume' },
     { title: '도달', kr: 'reach_KR', us: 'reach_US', kind: 'volume' },
-    { title: '매출', kr: 'sales_KR', us: 'sales_US', kind: 'money' },
     { title: '유입', kr: 'inflow_KR', us: 'inflow_US', kind: 'volume' },
+    { title: '매출', kr: 'sales_KR', us: 'sales_US', kind: 'money' },
   ];
 
   // AI 통합 브리핑 — 저장/로드는 country=GLOBAL 재활용, 생성은 aiGlobalSummary
@@ -1633,7 +1633,7 @@ function GlobalSummaryView({ weekMeta, selectedWeek, accountMetrics, gasUrl }) {
         {charts.map((c) => {
           const dual = c.kind !== 'pct';
           return (
-            <div key={c.title} style={{ flex: '1 1 420px', minWidth: 320, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 14px 10px', boxShadow: SHADOW }}>
+            <div key={c.title} style={{ flex: '1 1 calc(50% - 8px)', minWidth: 320, background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: '16px 14px 10px', boxShadow: SHADOW }}>
               <div className="flex items-center justify-between mb-2 px-1">
                 <h3 style={{ fontSize: 14.5, fontWeight: 800, margin: 0, color: C.ink }}>{c.title}{c.kind === 'money' ? ' (₩)' : c.kind === 'pct' ? ' (%)' : ''}</h3>
                 <div className="flex items-center gap-3" style={{ fontSize: 11, fontWeight: 700 }}>

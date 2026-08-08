@@ -493,6 +493,19 @@ function getFeedBySheet(sheetName, mode, salesMap, productColStart) {
   // BOTH 모드: {all:{}, feed:{}} 동시 반환 (시트 중복 읽기 방지)
   var isBoth = (mode === 'BOTH');
   var byWeek = {}, byWeekFeed = {}, thisYear = new Date().getFullYear(), tz = Session.getScriptTimeZone();
+
+  // 코드→정식이름 사전: 코드 컬럼/이름 컬럼은 개수·순서가 안 맞을 때가 많아 위치매핑은 불안정.
+  // 단일 제품(또는 개수 일치) 행에서 신뢰 가능한 매핑만 모아 코드별 정식 이름을 확정한다.
+  var codeNameMap = {};
+  if (codeCol >= 0 && nameCol >= 0) {
+    data.forEach(function(row) {
+      var cs = String(row[codeCol]||'').split(/[,、]/).map(function(s){return s.trim();}).filter(Boolean);
+      var ns = String(row[nameCol]||'').split(/[,、]/).map(function(s){return s.trim();}).filter(Boolean);
+      if (cs.length === 1 && ns.length === 1) { if (!codeNameMap[cs[0]]) codeNameMap[cs[0]] = ns[0]; }
+      else if (cs.length > 1 && cs.length === ns.length) { cs.forEach(function(c,i){ if(!codeNameMap[c]) codeNameMap[c]=ns[i]; }); }
+    });
+  }
+
   data.forEach(function(row) {
     var publishDate = row[0];
     var type        = String(row[1]||'').trim();
@@ -531,10 +544,17 @@ function getFeedBySheet(sheetName, mode, salesMap, productColStart) {
     if (salesMap) {
       if (productCode && salesMap.byCode) {
         // 멀티 제품(콤마/、 구분): 제품별로 각각 판매전환 계산 (하이픈은 코드 일부이므로 분리 안 함)
-        var _codes = productCode.split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
-        var _names = String(productName||'').split(/[,、]/).map(function(s){ return s.trim(); });
+        var _codesRaw = productCode.split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
+        var _names = String(productName||'').split(/[,、]/).map(function(s){ return s.trim(); }).filter(Boolean);
+        // 코드 중복 제거(같은 SKU 두 번 방지)
+        var _codes = _codesRaw.filter(function(c, i){ return _codesRaw.indexOf(c) === i; });
+        var _pairable = (_names.length === _codes.length); // 개수 일치 시에만 위치매핑 보조 사용
         if (_codes.length > 1) {
-          item.salesProdList = _codes.map(function(c, ci){ return { code: c, name: _names[ci] || '', lift: liftWindows(salesMap.byCode, c, dateStr) }; });
+          // 이름은 코드→정식이름 사전 우선, 없으면 개수 일치 시 위치매핑, 그래도 없으면 공란(코드만 표시)
+          item.salesProdList = _codes.map(function(c, ci){
+            var nm = codeNameMap[c] || (_pairable ? (_names[ci] || '') : '');
+            return { code: c, name: nm, lift: liftWindows(salesMap.byCode, c, dateStr) };
+          });
           item.salesProd = liftWindows(salesMap.byCode, _codes[0], dateStr); // 대표(첫 제품) — 정렬·등급 호환
         } else {
           item.salesProd = liftWindows(salesMap.byCode, _codes[0] || productCode, dateStr);
