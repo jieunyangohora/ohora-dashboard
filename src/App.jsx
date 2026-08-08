@@ -668,19 +668,19 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
                 <span style={{ fontSize: 10.5, color: '#5B4FCF', background: '#EDE9FF', borderRadius: 999, padding: '1px 8px', fontWeight: 700 }}>Beta</span>
               </div>
               <div className="flex items-center gap-2">
+                <span style={{ fontSize: 10.5, color: '#9A928A', fontWeight: 600, maxWidth: 200, lineHeight: 1.35, textAlign: 'right' }}>새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 필요할 때만 눌러주세요!</span>
                 {aiInsight && !aiEditMode && (
                   <button onClick={() => { setAiDraft(aiInsight); setAiEditMode(true); }} style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 12px', borderRadius: 8, background: '#fff', color: '#5B4FCF', border: '1px solid #D4CCFF', cursor: 'pointer' }}>✏️ 편집</button>
                 )}
                 <button onClick={fetchAiSummary} disabled={aiLoading || !gasUrl} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, background: aiLoading ? '#E8E4FF' : '#5B4FCF', color: '#fff', border: 'none', cursor: aiLoading ? 'wait' : 'pointer', opacity: !gasUrl ? 0.5 : 1 }}>
-                  {aiLoading ? '⏳ 분석 중...' : '✨ 인사이트 생성'}
+                  {aiLoading ? '⏳ 분석 중...' : '✨ AI 인사이트 생성'}
                 </button>
               </div>
             </div>
 
             {/* 안내 문구 */}
             <div style={{ fontSize: 11.5, color: '#7C72C8', background: '#EDEAFF', borderRadius: 8, padding: '6px 12px', marginBottom: 12, lineHeight: 1.6 }}>
-              💾 저장된 분석이 자동으로 불러와집니다. 해당 주차 내용으로 업데이트하려면 <b>'✨ 인사이트 생성'</b>을 눌러주세요.
-              새로 생성할 때마다 소량의 비용($0.01~0.02)이 발생하니 <b>필요할 때만</b> 눌러주세요!
+              💾 저장된 분석이 자동으로 불러와집니다. 해당 주차 내용으로 업데이트하려면 <b>'✨ AI 인사이트 생성'</b>을 눌러주세요.
             </div>
 
             {/* KPI 타일 */}
@@ -775,7 +775,7 @@ function CountryView({ countryKey, weekMeta, selectedWeek, displayWeeks, account
             ) : (
               <div style={{ fontSize: 12, color: '#9A928A', background: '#fff', borderRadius: 10, padding: '12px 14px', border: '1px solid #E8E4FF', lineHeight: 1.6 }}>
                 💡 이 주차의 오가닉/총 도달 비율, 콘텐츠 타율, 제품군별 성과를 분석하고 다음 주 전략을 Claude AI가 자동 제안합니다.<br />
-                위 <b style={{ color: '#5B4FCF' }}>'✨ 인사이트 생성'</b> 버튼을 눌러 생성해보세요. 생성 후에는 시트에 저장되어 다음에 자동으로 불러옵니다.
+                위 <b style={{ color: '#5B4FCF' }}>'✨ AI 인사이트 생성'</b> 버튼을 눌러 생성해보세요. 생성 후에는 시트에 저장되어 다음에 자동으로 불러옵니다.
               </div>
             )}
           </div>
@@ -1625,8 +1625,8 @@ export default function Dashboard() {
       <div className="max-w-[1400px] mx-auto w-full">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
           <div>
-            <div className="flex items-center gap-2 mb-1"><Swatch color={C.accent} size={10} /><span style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>오호라 · 성과 대시보드</span></div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>한/미 SNS 성과 대시보드</h1>
+            <div className="flex items-center gap-2 mb-1"><Swatch color={C.accent} size={10} /><span style={{ fontSize: 12, color: C.sub, fontWeight: 700 }}>한/미 SNS 콘텐츠 성과</span></div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>오호라 콘텐츠마케팅 성과 대시보드</h1>
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {recentWeekKeys.map((w) => <button key={w} title={weekRangeLabel(w, weekMeta)} onClick={() => setSelectedWeek(w)} style={{ padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700, border: `1px solid ${w === selectedWeek ? C.accent : C.border}`, background: w === selectedWeek ? C.accent : '#fff', color: w === selectedWeek ? '#fff' : C.sub, cursor: 'pointer' }}>{w}</button>)}
