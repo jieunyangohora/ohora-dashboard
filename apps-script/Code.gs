@@ -329,14 +329,23 @@ function doGet(e) {
       var aiMetrics = (amAll[aiCountry] && amAll[aiCountry][aiWeek]) || {};
       var aiSheetName = aiCountry === 'KR' ? SHEET_KR_FEED : SHEET_US_FEED;
       var aiColStart  = aiCountry === 'KR' ? 48 : 49;
-      var aiItems = [], aiTrend = [];
+      var aiItems = [], aiTrend = [], aiMeta = { totalPublished: 0, excludedFeed: 0 };
       try {
         var aiCached = loadCachedSales();
         var aiSalesMap = (aiCached && aiCached[aiCountry.toLowerCase()]) || {byCode:{},byCat:{}};
         var aiBoth = getFeedBySheet(aiSheetName, 'BOTH', aiSalesMap, aiColStart); // {all:{주차:[...]}, feed:{...}}
         var aiWeekItems = (aiBoth && aiBoth.all && aiBoth.all[aiWeek]) || [];
-        // 전체 발행건(정렬만, 자르지 않음) → generateAiSummary가 정확한 count + 타율 분석
-        aiItems = aiWeekItems.slice().sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); });
+        // 피드는 브랜딩 목적이라 성과 낮음 → 성과분석에서 제외. 단, 릴스 도달 중앙값 이상인 "확실한 고성과 피드"만 포함.
+        var reels = aiWeekItems.filter(function(it){ return it.isReel; });
+        var feeds = aiWeekItems.filter(function(it){ return !it.isReel; });
+        var median = function(a){ if(!a.length) return 0; var s=a.slice().sort(function(x,y){return x-y;}); var m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+        var reelMed = median(reels.map(function(it){ return Number(it.reach)||0; }));
+        var thresh = reelMed > 0 ? reelMed : median(aiWeekItems.map(function(it){ return Number(it.reach)||0; }));
+        var goodFeeds = feeds.filter(function(it){ return thresh > 0 && (Number(it.reach)||0) >= thresh; });
+        var analysisItems = reels.concat(goodFeeds);
+        if (!analysisItems.length) analysisItems = aiWeekItems; // 안전장치(릴스·고성과피드 전무 시 전량)
+        aiItems = analysisItems.sort(function(a,b){ return (Number(b.reach||0)+Number(b.engagement||0))-(Number(a.reach||0)+Number(a.engagement||0)); });
+        aiMeta = { totalPublished: aiWeekItems.length, excludedFeed: feeds.length - goodFeeds.length };
         // 최근 6주 추이 (선택 주차 이하, 주차번호순 마지막 6개)
         var selN = weekNum(aiWeek);
         var wkList = Object.keys((amAll[aiCountry]||{})).filter(function(w){ return weekNum(w) <= selN; }).sort(function(a,b){ return weekNum(a)-weekNum(b); }).slice(-6);
@@ -346,7 +355,7 @@ function doGet(e) {
           return { week: wk, views: mm.views||0, sales: mm.sales||0, inflow: mm.inflow||0, itemCount: cnt };
         });
       } catch(e2) { Logger.log('aiSummary items/trend error: '+e2); }
-      return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems, aiTrend));
+      return json(generateAiSummary(aiCountry, aiWeek, aiMetrics, aiItems, aiTrend, aiMeta));
     }
 
     // ── 메인 type=all ──────────────────────────────────────
@@ -1111,7 +1120,7 @@ function authorizeExternalRequest() {
   return r.getResponseCode();
 }
 
-function generateAiSummary(country, week, accountMetrics, weekItems, trend) {
+function generateAiSummary(country, week, accountMetrics, weekItems, trend, meta) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY가 GAS Script Properties에 설정되지 않았습니다. GAS 에디터 > 프로젝트 설정 > 스크립트 속성에 추가해주세요.' };
   try {
@@ -1141,25 +1150,26 @@ function generateAiSummary(country, week, accountMetrics, weekItems, trend) {
       '- 조회수: ' + views.toLocaleString() + (isKR ? ' (오가닉 ' + organicViews.toLocaleString() + ')' : ''),
       '- 매출: ₩' + sales.toLocaleString() + (salesRate  != null ? ' (목표 달성 ' + salesRate  + '%)' : ''),
       '- 유입: '   + inflow.toLocaleString() + (inflowRate != null ? ' (목표 달성 ' + inflowRate + '%)' : ''),
-      '- 발행 콘텐츠: ' + itemCount + '건',
+      '- 발행 콘텐츠: ' + ((meta && meta.totalPublished) || itemCount) + '건 (이 중 성과 분석 대상 = 릴스+고성과피드 ' + itemCount + '건)',
       (isKR ? '- 총 도달 대비 오가닉 비율: ' + organicRatio + '% (총 ' + reach.toLocaleString() + ' / 오가닉 ' + organicReach.toLocaleString() + ')' : null),
       '',
       '## 최근 추이 (성장/정체/하락 판단용)',
       trendLines || '(데이터 없음)',
       '',
-      '## 이번 주 발행 콘텐츠 (도달순 — 타율/집중도 분석용)',
-      itemLines || '(발행 없음)',
+      '## 성과 분석 대상 콘텐츠 (릴스 + 확실한 고성과 피드만 · 도달순)',
+      '※ 피드(캐러셀·이미지)는 브랜딩 목적이라 성과가 원래 낮고 담당도 별도예요. 저성과 피드 ' + ((meta && meta.excludedFeed) || 0) + '건은 성과 분석에서 이미 제외했어요.',
+      itemLines || '(분석 대상 없음)',
       '',
       '아래 3개 섹션으로 **간결하게** 답변하세요. 장황한 서술·수식어 금지:',
       '📊 **성과 요약** — 전주 대비 변화 + 목표 달성 현황 + 최근 추이 방향(성장/정체/하락). 2문장 이내.',
-      '🎯 **콘텐츠 타율** — 성과 분포 진단(집중형 vs 분산형)을 구체 수치(상위 N건이 도달 X%)로. 2문장 이내.',
-      '   ⚠️ 타율 계산은 **릴스([릴스]) 중심**으로 하세요. 피드([피드])는 **고성과 건만 포함**하고, 저성과 피드는 타율 base에서 제외하세요(피드는 원래 도달이 낮아 타율을 왜곡함).',
+      '🎯 **콘텐츠 타율** — 위 "성과 분석 대상 콘텐츠"(릴스+고성과피드) 기준으로 성과 분포 진단(집중형 vs 분산형)을 구체 수치(상위 N건이 도달 X%)로. 저성과 피드는 이미 제외됐으니 언급 불필요. 2문장 이내.',
       '🚀 **다음 주 액션** — 불릿 2~3개, 각 한 문장, 데이터 기반 실행안.',
       '',
       '규칙:',
       '- **말투: 콘텐츠팀 동료에게 브리핑하듯 친근한 실무체(~요체)로.** 딱딱한 "~다/~한다" 종결 대신 "~했어요/~아쉬워요/~해봐요"처럼 부드럽게. 단, 수치와 핵심 진단은 명확히 유지하고 과한 감탄사·이모지 남발은 금지.',
       '- 각 불릿은 "**라벨**: 설명" 형식(라벨 굵게). 숫자는 만/억 단위로.',
       '- **다음 주 액션은 콘텐츠팀이 직접 실행 가능한 것만 제안하세요.** 광고 예산·광고 세팅·광고 집행 조정은 콘텐츠팀 관할이 아니므로 액션으로 제시하지 마세요.',
+      '- 피드(캐러셀·이미지)는 브랜딩용이고 담당이 별도예요. 위 목록의 고성과 피드 외에는 피드를 성과 진단·액션에서 다루지 마세요. 분석·액션은 릴스 중심으로.',
       (isKR ? '- (KR) 오가닉 비율은 현황 진단에서 언급은 하되, 이를 높이는 방법은 콘텐츠 측면(포맷·주제·시리즈화·발행 전략)으로 제안하세요. "광고 예산 조정"으로 풀지 마세요.' : '- US는 광고 비중이 낮아 총/오가닉 도달 비율은 의미 없으니 언급하지 마세요.'),
       '- 콘텐츠 크리에이티브·기획 의도 추측 금지. 오직 수치 해석만.'
     ].filter(function(x){ return x !== null; }).join('\n');
