@@ -132,6 +132,8 @@ function doGet(e) {
     if (param === 'debugAccount') return json(buildAccountMetrics());
     if (param === 'debugMonthly') return json(debugMonthlySheet_());
     if (param === 'debugTargets') return json(buildMonthlyTargets());
+    if (param === 'debugSheets') return json(debugSheets_());
+    if (param === 'debugWeek') return json(debugWeekSheet_());
 
     // US 게시물 시트 컬럼 위치 확인 (product type/code/name 헤더가 어디 있는지)
     if (param === 'debugUSColumns') {
@@ -580,29 +582,93 @@ function pctNum(v) { var n=Number(String(v||'').replace(/[,\s%]/g,'')); return i
 var _SHEETS_CACHE = null;
 function gidSheet(gid) { if(!_SHEETS_CACHE) _SHEETS_CACHE=getS().getSheets(); for(var i=0;i<_SHEETS_CACHE.length;i++){if(_SHEETS_CACHE[i].getSheetId()===gid)return _SHEETS_CACHE[i];} return null; }
 
-function buildAccountMetrics() {
-  var out={KR:{},US:{}}, yr=new Date().getFullYear();
-  [['KR',GROWTH_KR_GID],['US',GROWTH_US_GID]].forEach(function(p) {
-    var country=p[0], sh=gidSheet(p[1]); if(!sh) return;
-    var lr=sh.getLastRow(), lc=sh.getLastColumn(); if(lr<2||lc<3) return;
-    var vals=sh.getRange(1,1,Math.min(lr,40),lc).getValues(), headerRow=-1, colWeek={};
-    for (var r=0;r<vals.length;r++) {
-      var cnt=0,cw={}; for(var c=0;c<vals[r].length;c++){ var m=String(vals[r][c]||'').trim().match(/^W(\d+)$/); if(m){cw[c]='W'+parseInt(m[1]);cnt++;} }
-      if (cnt>=3){headerRow=r;colWeek=cw;break;}
+// RAW_그로스_week 탭(가로 US/KR/JP 블록)에서 주간 달성/달성률 파싱
+// - 주차 헤더(W25..) 연속 구간으로 블록 분리, 국가는 헤더의 US/KR/JP 라벨로 판별(JP 무시)
+// - '달성률' 라벨이 매출/유입/전환율/객단가에 중복되므로 '목표/달성 XX' 행으로 섹션 컨텍스트 추적
+function readWeeklyGrowth_(out) {
+  var sh = getS().getSheetByName('RAW_그로스_week');
+  if (!sh || sh.getLastRow() < 4) return;
+  var lr = sh.getLastRow(), lc = sh.getLastColumn();
+  var vals = sh.getRange(1, 1, Math.min(lr, 45), Math.min(lc, 60)).getValues();
+  var WEEK_RE = /^W(\d+)$/;
+
+  // 1) 주차 헤더행 (W?? 3개 이상)
+  var headerRow = -1;
+  for (var r = 0; r < Math.min(vals.length, 8); r++) {
+    var cnt = 0;
+    for (var c = 0; c < vals[r].length; c++) if (WEEK_RE.test(String(vals[r][c] || '').trim())) cnt++;
+    if (cnt >= 3) { headerRow = r; break; }
+  }
+  if (headerRow < 0) return;
+
+  // 2) 연속 주차 구간 → 블록
+  var hdr = vals[headerRow], blocks = [], cur = null;
+  for (var c2 = 0; c2 < hdr.length; c2++) {
+    var m = String(hdr[c2] || '').trim().match(WEEK_RE);
+    if (m) { if (!cur) { cur = { weekCols: {}, firstCol: c2 }; blocks.push(cur); } cur.weekCols[c2] = 'W' + parseInt(m[1]); }
+    else cur = null;
+  }
+  blocks.forEach(function(b) {
+    b.labelCol = b.firstCol - 1;
+    b.lastCol = Math.max.apply(null, Object.keys(b.weekCols).map(Number));
+  });
+
+  // 3) 국가 판별: 헤더행 이상에서 블록 컬럼 범위의 US/KR/JP 텍스트
+  function detectCountry(b) {
+    for (var r = 0; r <= headerRow; r++) {
+      for (var c = Math.max(0, b.firstCol - 2); c <= b.lastCol; c++) {
+        var s = String(vals[r][c] || '').trim().toUpperCase();
+        if (s === 'KR' || s.indexOf('_KR') >= 0 || s === '한국') return 'KR';
+        if (s === 'US' || s.indexOf('_US') >= 0 || s === '미국') return 'US';
+        if (s === 'JP' || s.indexOf('_JP') >= 0 || s === '일본') return 'JP';
+      }
     }
-    if (headerRow<0) return;
-    var labelOf=function(r){ for(var c=0;c<3;c++){var s=String(vals[r][c]||'').trim();if(s)return s;} return ''; };
-    var F={
-      '달성 매출':'sales','매출 달성률':'salesAchieveRate',
-      '달성 유입':'inflow','유입 달성률':'inflowAchieveRate',
-      '조회수 달성률':'viewsAchieveRate','달성 조회수 달성률':'viewsAchieveRate',
-      '오가닉 조회수 달성률':'organicViewsAchieveRate','오가닉 달성률':'organicViewsAchieveRate'
-    };
-    for (var r=headerRow+1;r<vals.length;r++) {
-      var f=F[labelOf(r)]; if(!f) continue;
-      Object.keys(colWeek).forEach(function(cs){ var c=parseInt(cs),wk=colWeek[c]; if(!out[country][wk])out[country][wk]={}; out[country][wk][f]=f.indexOf('Rate')>=0?pctNum(vals[r][c]):toNum(vals[r][c]); });
+    return null;
+  }
+
+  // 4) 라벨(주 컬럼에 가까운 쪽 우선) 읽기
+  function labelAt(b, r) {
+    for (var d = 0; d <= 2; d++) { var s = String(vals[r][b.labelCol - d] || '').trim(); if (s) return s; }
+    return '';
+  }
+
+  blocks.forEach(function(b) {
+    var country = detectCountry(b);
+    if (country !== 'KR' && country !== 'US') return; // JP 등 무시
+    if (!out[country]) out[country] = {};
+    var ctx = null;
+    for (var r = headerRow + 1; r < vals.length; r++) {
+      var label = labelAt(b, r);
+      if (!label) continue;
+      // 섹션 컨텍스트 갱신
+      if (/매출/.test(label)) ctx = 'sales';
+      else if (/유입/.test(label)) ctx = 'inflow';
+      else if (/전환율/.test(label)) ctx = 'conv';
+      else if (/객단가/.test(label)) ctx = 'aov';
+      else if (/조회수|콘텐츠\s*뷰|뷰/.test(label)) ctx = 'views';
+      // 값 매핑 (달성/달성률만)
+      var field = null;
+      if (/^달성\s*매출/.test(label)) field = 'sales';
+      else if (/^달성\s*유입/.test(label)) field = 'inflow';
+      else if (/달성률/.test(label)) {
+        if (ctx === 'sales') field = 'salesAchieveRate';
+        else if (ctx === 'inflow') field = 'inflowAchieveRate';
+        else if (ctx === 'views') field = 'viewsAchieveRate';
+      }
+      if (!field) continue;
+      var isRate = field.indexOf('Rate') >= 0;
+      Object.keys(b.weekCols).forEach(function(cs) {
+        var cc = parseInt(cs), wk = b.weekCols[cc];
+        if (!out[country][wk]) out[country][wk] = {};
+        out[country][wk][field] = isRate ? pctNum(vals[r][cc]) : toNum(vals[r][cc]);
+      });
     }
   });
+}
+
+function buildAccountMetrics() {
+  var out={KR:{},US:{}}, yr=new Date().getFullYear();
+  readWeeklyGrowth_(out);
   [['KR',SNS_KR_GID],['US',SNS_US_GID]].forEach(function(p) {
     var country=p[0], sh=gidSheet(p[1]); if(!sh||sh.getLastRow()<2) return;
     var vals=sh.getRange(1,1,sh.getLastRow(),Math.max(sh.getLastColumn(),20)).getValues();
@@ -703,6 +769,35 @@ function buildMonthlyTargets() {
     }
   });
   return out;
+}
+
+// 전체 탭 이름↔gid + 코드가 읽는 GROWTH 탭 정체 확인
+function debugSheets_() {
+  var ss = getS();
+  var sheets = ss.getSheets().map(function(s){ return { name: s.getName(), gid: s.getSheetId() }; });
+  function gridOf(sh, rows, cols) {
+    if (!sh) return null;
+    return sh.getRange(1,1,Math.min(sh.getLastRow(),rows||20),Math.min(sh.getLastColumn(),cols||25))
+             .getValues().map(function(r){ return r.map(function(c){ return String(c||''); }); });
+  }
+  return {
+    allSheets: sheets,
+    GROWTH_KR_GID: GROWTH_KR_GID, GROWTH_US_GID: GROWTH_US_GID,
+    growthKR_name: (gidSheet(GROWTH_KR_GID)||{getName:function(){return null;}}).getName(),
+    growthUS_name: (gidSheet(GROWTH_US_GID)||{getName:function(){return null;}}).getName(),
+    growthKR_grid: gridOf(gidSheet(GROWTH_KR_GID)),
+    growthUS_grid: gridOf(gidSheet(GROWTH_US_GID))
+  };
+}
+// RAW_그로스_week 원본 구조 덤프
+function debugWeekSheet_() {
+  var sh = getS().getSheetByName('RAW_그로스_week');
+  if (!sh) return { error: 'RAW_그로스_week 시트 없음', gid: null };
+  return {
+    gid: sh.getSheetId(),
+    grid: sh.getRange(1,1,Math.min(sh.getLastRow(),30),Math.min(sh.getLastColumn(),40))
+            .getValues().map(function(r){ return r.map(function(c){ return String(c||''); }); })
+  };
 }
 
 // RAW_그로스_month 구조 디버그
