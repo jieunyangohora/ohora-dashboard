@@ -1084,6 +1084,17 @@ function saveAiSummaryToSheet(country, week, summary) {
   } catch(e) { Logger.log('saveAiSummaryToSheet error: ' + e); }
 }
 
+// ⚡ 이 함수를 에디터에서 한 번 실행 → 외부요청(UrlFetchApp) 권한 승인용
+function authorizeExternalRequest() {
+  var r = UrlFetchApp.fetch('https://api.anthropic.com/v1/models', {
+    method: 'get',
+    headers: { 'x-api-key': PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || 'none', 'anthropic-version': '2023-06-01' },
+    muteHttpExceptions: true
+  });
+  Logger.log('외부요청 권한 OK. HTTP ' + r.getResponseCode());
+  return r.getResponseCode();
+}
+
 function generateAiSummary(country, week, accountMetrics, weekItems) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
   if (!apiKey) return { ok: false, error: 'ANTHROPIC_API_KEY가 GAS Script Properties에 설정되지 않았습니다. GAS 에디터 > 프로젝트 설정 > 스크립트 속성에 추가해주세요.' };
@@ -1124,12 +1135,15 @@ function generateAiSummary(country, week, accountMetrics, weekItems) {
     var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      payload: JSON.stringify({ model: 'claude-opus-4-5-20251101', max_tokens: 1024, messages: [{ role: 'user', content: prompt }] }),
+      payload: JSON.stringify({ model: 'claude-opus-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] }),
       muteHttpExceptions: true
     });
     var result = JSON.parse(response.getContentText());
     if (result.error) return { ok: false, error: result.error.message || JSON.stringify(result.error) };
-    var summary = result.content[0].text;
+    // opus-5는 thinking이 기본 ON이라 content[0]이 사고 블록일 수 있음 → text 블록만 골라 합침
+    var summary = '';
+    (result.content || []).forEach(function(b) { if (b && b.type === 'text' && b.text) summary += b.text; });
+    if (!summary) return { ok: false, error: 'AI 응답에서 텍스트를 찾지 못함 (stop_reason: ' + (result.stop_reason||'?') + ')' };
     saveAiSummaryToSheet(country, week, summary);
     return { ok: true, summary: summary };
   } catch(e) { return { ok: false, error: e.toString() }; }
